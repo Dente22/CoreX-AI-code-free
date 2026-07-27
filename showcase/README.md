@@ -1,26 +1,32 @@
-# Showcase — готовые проекты для репозитория
+# Showcase — finished projects for the public repo / готовые проекты
 
-Сюда складываем **законченные** демо/проекты, которые можно показывать вместе с CoreX.
+Drop finished demos here so they ship with the public CoreX repository.
 
-## Как пользоваться
+Сюда складываем **законченные** демо/проекты для публичного репозитория CoreX.
 
-1. Готовый проект копируй в `showcase/<имя-проекта>/`
-2. Временный черновик можно кинуть в `showcase/_inbox/` (эта папка **не коммитится**)
-3. В каждом проекте желателен короткий `README.md` (что это, как открыть)
+## How / Как
 
-## Правила
+1. Copy a finished project to `showcase/<project-name>/`
+2. Drafts can go to `showcase/_inbox/` (not committed)
+3. Each project should include a short `README.md`
 
-- Без `node_modules`, `.venv`, секретов и `.env`
-- Без огромных медиа, если они не нужны для демо
-- Один проект = одна папка с понятным именем (`landing-cafe`, `todo-app`, …)
+Готовый проект → `showcase/<имя>/` · черновики → `_inbox/` · в каждом проекте желателен `README.md`.
 
-## Пример структуры
+## Rules / Правила
+
+- No `node_modules`, `.venv`, secrets, or `.env`
+- Avoid huge media unless required for the demo
+- One project = one clear folder name (`landing-cafe`, `todo-app`, …)
+
+Без `node_modules` / `.venv` / секретов. Один проект = одна понятная папка.
+
+## Layout / Структура
 
 ```text
 showcase/
   README.md
-  _inbox/          ← временное, в git не попадает
-  my-landing/      ← готовый проект
+  _inbox/          ← temp, ignored by git
+  my-landing/
     README.md
     index.html
     ...
