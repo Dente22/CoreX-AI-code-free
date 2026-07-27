@@ -1,0 +1,72 @@
+{
+
+  "id": "design-delivery-local",
+
+  "name": "Дизайн и разработка (локально)",
+
+  "description": "Для локальных моделей: дизайнер сохраняет spec в design-system/ → разработчик читает и верстает → QA.",
+
+  "local_optimized": true,
+
+  "limits": {
+
+    "max_total_turns": 40,
+
+    "max_turns_per_step": 16,
+
+    "max_file_writes": 20,
+
+    "delay_between_turns_ms": 400,
+
+    "delay_between_steps_ms": 1200
+
+  },
+
+  "steps": [
+
+    {
+
+      "agent_id": "ui-ux-designer",
+
+      "role": "UI/UX-дизайнер",
+
+      "goal": "Сохрани Design Spec на диск (write_file): design-system/MASTER.md, design-system/pages/index.md, design-system/blocks/hero.md, navigation.md, sections.md. Палитра #9A5EFF, #00D2FF, типографика, layout, компоненты, 3 anti-patterns, a11y. Без run_command. done только после записи файлов.",
+
+      "max_turns": 12,
+
+      "allow_writes": true
+
+    },
+
+    {
+
+      "agent_id": "lead-developer",
+
+      "role": "Старший разработчик",
+
+      "goal": "Прочитай DESIGN HANDOFF и файлы design-system/. Реализуй index.html и style.css строго по spec (hero, nav, 3 секции, footer). Минимум 4 хода: view MASTER, view pages/index.md, write index.html, write style.css. Не выдумывай дизайн — следуй дизайнеру.",
+
+      "max_turns": 16,
+
+      "allow_writes": true
+
+    },
+
+    {
+
+      "agent_id": "qa-engineer",
+
+      "role": "QA-инженер",
+
+      "goal": "Сверь index.html/style.css с design-system/MASTER.md и pages/index.md. Если layout примитивный — patch_file style.css. Проверь nav→section ids. Отчёт на русском.",
+
+      "max_turns": 10,
+
+      "allow_writes": true
+
+    }
+
+  ]
+
+}
+

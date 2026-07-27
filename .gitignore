@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.venv/
+.venv-*/
+venv/
+env/
+
+# Build / release
+dist/
+frontend/dist/
+frontend/release/
+frontend/vendor/
+build/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / local
+.cursor/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Secrets & local env (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+chat/ai_online_providers.json
+!chat/ai_online_providers.example.json
+
+# Runtime / local state
+chat/project_memory.md
+chat/history/
+chat/*.log
+chat/token_usage.json
+chat/ai_runtime.json
+*.log
+frontend/_*.txt
+frontend/_*.log
+
+# Showcase: keep structure, ignore accidental bulky dumps unless committed on purpose
+showcase/_inbox/*
+!showcase/_inbox/.gitkeep
+showcase/**/node_modules/
+showcase/**/.venv/
+showcase/**/dist/
+showcase/**/__pycache__/
+
+# OS / temp
+*.tmp
+*.temp
+~$
+
+# Installer artifacts
+*.exe
+!**/tools/**/*.exe
+*.msi
+*.dmg
+*.AppImage

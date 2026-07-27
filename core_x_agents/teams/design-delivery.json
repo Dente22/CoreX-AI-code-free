@@ -1,0 +1,42 @@
+{
+  "id": "design-delivery",
+  "name": "Дизайн и разработка",
+  "description": "Дизайнер → разработчик → тестер → проверка безопасности",
+  "limits": {
+    "max_total_turns": 28,
+    "max_turns_per_step": 8,
+    "max_file_writes": 14,
+    "delay_between_turns_ms": 600,
+    "delay_between_steps_ms": 2500
+  },
+  "steps": [
+    {
+      "agent_id": "ui-ux-designer",
+      "role": "UI/UX-дизайнер",
+      "goal": "Проанализируй задачу. Запусти ui-ux-pro-max search.py (--design-system). Создай Design Spec: палитра, типографика, компоненты, anti-patterns, a11y. Сохрани design-system/MASTER.md через --persist если многостраничный UI.",
+      "max_turns": 7,
+      "allow_writes": true
+    },
+    {
+      "agent_id": "lead-developer",
+      "role": "Старший разработчик",
+      "goal": "Реализуй UI/фичу строго по Design Spec от дизайнера. Используй токены, semantic colors, stack patterns. Один файл за ход. run_file для проверки.",
+      "max_turns": 8,
+      "allow_writes": true
+    },
+    {
+      "agent_id": "qa-engineer",
+      "role": "QA-инженер",
+      "goal": "Проверь UI по чеклисту ux-review: touch targets, contrast, responsive, a11y. Запусти main.py/pytest. Добавь тесты на критичные пути.",
+      "max_turns": 6,
+      "allow_writes": true
+    },
+    {
+      "agent_id": "security-auditor",
+      "role": "Аудитор безопасности",
+      "goal": "Проверь XSS, CSP, секреты в UI-коде, небезопасные inline scripts, утечки данных в формах. Исправь критичное.",
+      "max_turns": 5,
+      "allow_writes": true
+    }
+  ]
+}

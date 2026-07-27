@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CoreX</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+        -webkit-app-region: drag;
+        user-select: none;
+      }
+
+      body {
+        background: transparent;
+      }
+
+      .shell {
+        width: 100%;
+        height: 100%;
+        border-radius: 22px;
+        overflow: hidden;
+        position: relative;
+        background: #050810;
+        border: 1px solid rgba(154, 94, 255, 0.4);
+        box-shadow:
+          0 28px 90px rgba(0, 0, 0, 0.75),
+          0 0 80px rgba(154, 94, 255, 0.15),
+          inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      }
+
+      .aurora {
+        position: absolute;
+        inset: -40%;
+        filter: blur(48px);
+        opacity: 0.55;
+        pointer-events: none;
+      }
+
+      .aurora-a {
+        background: radial-gradient(circle at 30% 40%, rgba(154, 94, 255, 0.55), transparent 55%);
+        animation: driftA 9s ease-in-out infinite;
+      }
+
+      .aurora-b {
+        background: radial-gradient(circle at 70% 60%, rgba(0, 210, 255, 0.45), transparent 50%);
+        animation: driftB 11s ease-in-out infinite;
+      }
+
+      .aurora-c {
+        background: radial-gradient(circle at 50% 80%, rgba(236, 72, 153, 0.25), transparent 45%);
+        animation: driftC 13s ease-in-out infinite;
+      }
+
+      @keyframes driftA {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(6%, -4%) scale(1.08); }
+      }
+
+      @keyframes driftB {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(-5%, 6%) scale(1.12); }
+      }
+
+      @keyframes driftC {
+        0%, 100% { transform: translate(0, 0); opacity: 0.35; }
+        50% { transform: translate(3%, -3%); opacity: 0.6; }
+      }
+
+      canvas#fx {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .scanlines {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(255, 255, 255, 0.025) 0px,
+          rgba(255, 255, 255, 0.025) 1px,
+          transparent 2px,
+          transparent 4px
+        );
+        opacity: 0.35;
+        mix-blend-mode: overlay;
+      }
+
+      .vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.55) 100%);
+      }
+
+      .hero {
+        position: absolute;
+        left: 50%;
+        top: 40%;
+        width: 220px;
+        height: 220px;
+        transform: translate(-50%, -50%);
+        perspective: 1000px;
+      }
+
+      .hex-grid {
+        position: absolute;
+        inset: 0;
+        transform-style: preserve-3d;
+        animation: hexSpin 14s linear infinite;
+      }
+
+      @keyframes hexSpin {
+        from { transform: rotateX(62deg) rotateZ(0deg); }
+        to { transform: rotateX(62deg) rotateZ(360deg); }
+      }
+
+      .hex {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 52px;
+        height: 52px;
+        margin: -26px 0 0 -26px;
+        clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+        background: linear-gradient(135deg, rgba(154, 94, 255, 0.35), rgba(0, 210, 255, 0.2));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 0 20px rgba(0, 210, 255, 0.25);
+      }
+
+      .hex:nth-child(1) { transform: translate(-58px, -34px) translateZ(30px); animation: hexPulse 2.2s ease-in-out infinite; }
+      .hex:nth-child(2) { transform: translate(58px, -34px) translateZ(10px); animation: hexPulse 2.2s ease-in-out 0.3s infinite; }
+      .hex:nth-child(3) { transform: translate(0, 62px) translateZ(50px); animation: hexPulse 2.2s ease-in-out 0.6s infinite; }
+      .hex:nth-child(4) { transform: translate(0, 0) translateZ(70px) scale(1.15); animation: hexPulse 1.8s ease-in-out infinite; }
+
+      @keyframes hexPulse {
+        0%, 100% { opacity: 0.65; filter: brightness(1); }
+        50% { opacity: 1; filter: brightness(1.35); }
+      }
+
+      .core-wrap {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 72px;
+        height: 72px;
+        margin: -36px 0 0 -36px;
+        transform-style: preserve-3d;
+        animation: coreTilt 6s ease-in-out infinite;
+      }
+
+      @keyframes coreTilt {
+        0%, 100% { transform: rotateX(18deg) rotateY(-12deg); }
+        50% { transform: rotateX(24deg) rotateY(18deg); }
+      }
+
+      .core {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(circle at 32% 28%, #fff 0%, #00d2ff 22%, #9a5eff 65%, #312e81 100%);
+        box-shadow:
+          0 0 35px rgba(0, 210, 255, 0.65),
+          0 0 70px rgba(154, 94, 255, 0.45),
+          inset 0 -8px 18px rgba(0, 0, 0, 0.35);
+        animation: coreBeat 1.6s ease-in-out infinite;
+      }
+
+      .core::after {
+        content: '';
+        position: absolute;
+        inset: -14px;
+        border-radius: 50%;
+        border: 2px solid rgba(0, 210, 255, 0.35);
+        animation: ripple 2.4s ease-out infinite;
+      }
+
+      @keyframes coreBeat {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+      }
+
+      @keyframes ripple {
+        0% { transform: scale(0.85); opacity: 0.8; }
+        100% { transform: scale(1.45); opacity: 0; }
+      }
+
+      .orbit-dot {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 10px;
+        height: 10px;
+        margin: -5px 0 0 -5px;
+        border-radius: 50%;
+        background: #00d2ff;
+        box-shadow: 0 0 12px #00d2ff;
+      }
+
+      .orbit-dot.a { animation: orbitA 3.2s linear infinite; }
+      .orbit-dot.b { animation: orbitB 4.1s linear infinite; background: #c49aff; box-shadow: 0 0 12px #9a5eff; }
+      .orbit-dot.c { animation: orbitC 5.3s linear infinite; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; }
+
+      @keyframes orbitA {
+        from { transform: rotate(0deg) translateX(88px) rotate(0deg); }
+        to { transform: rotate(360deg) translateX(88px) rotate(-360deg); }
+      }
+
+      @keyframes orbitB {
+        from { transform: rotate(120deg) translateX(72px) rotate(-120deg); }
+        to { transform: rotate(480deg) translateX(72px) rotate(-480deg); }
+      }
+
+      @keyframes orbitC {
+        from { transform: rotate(240deg) translateX(96px) rotate(-240deg); }
+        to { transform: rotate(600deg) translateX(96px) rotate(-600deg); }
+      }
+
+      .brand {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 66%;
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .brand h1 {
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-indent: 0.18em;
+        background: linear-gradient(120deg, #f5e6ff 0%, #00d2ff 45%, #9a5eff 80%, #f5e6ff 100%);
+        background-size: 220% auto;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: titleFlow 4s linear infinite;
+        filter: drop-shadow(0 0 18px rgba(154, 94, 255, 0.35));
+      }
+
+      @keyframes titleFlow {
+        0% { background-position: 0% center; }
+        100% { background-position: 220% center; }
+      }
+
+      .brand p {
+        margin-top: 8px;
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.9);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      .phase-tag {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(0, 210, 255, 0.95);
+        border: 1px solid rgba(0, 210, 255, 0.35);
+        background: rgba(0, 210, 255, 0.08);
+      }
+
+      .footer {
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 22px;
+      }
+
+      .status {
+        font-size: 11px;
+        color: #94a3b8;
+        margin-bottom: 10px;
+        min-height: 16px;
+        transition: color 0.3s ease;
+      }
+
+      .shell.error .status {
+        color: #fca5a5;
+      }
+
+      .shell.error .fill {
+        background: linear-gradient(90deg, #ef4444, #f97316) !important;
+        animation: none !important;
+      }
+
+      .shell.error .brand h1 {
+        animation: none;
+        background: linear-gradient(135deg, #fecaca, #f87171);
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+
+      .track {
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        overflow: hidden;
+        box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.35);
+      }
+
+      .fill {
+        height: 100%;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #9a5eff, #00d2ff, #ec4899, #9a5eff);
+        background-size: 300% 100%;
+        animation: shimmer 2s linear infinite;
+        transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+        box-shadow: 0 0 16px rgba(0, 210, 255, 0.45);
+      }
+
+      @keyframes shimmer {
+        0% { background-position: 100% 0; }
+        100% { background-position: -100% 0; }
+      }
+
+      .shell.done .fill {
+        animation: none;
+        background: linear-gradient(90deg, #22c55e, #00d2ff);
+        box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell" id="shell">
+      <div class="aurora aurora-a"></div>
+      <div class="aurora aurora-b"></div>
+      <div class="aurora aurora-c"></div>
+      <canvas id="fx" aria-hidden="true"></canvas>
+      <div class="scanlines"></div>
+      <div class="vignette"></div>
+
+      <div class="hero">
+        <div class="hex-grid">
+          <div class="hex"></div>
+          <div class="hex"></div>
+          <div class="hex"></div>
+          <div class="hex"></div>
+        </div>
+        <div class="core-wrap">
+          <div class="core"></div>
+        </div>
+        <div class="orbit-dot a"></div>
+        <div class="orbit-dot b"></div>
+        <div class="orbit-dot c"></div>
+      </div>
+
+      <div class="brand">
+        <h1>CoreX</h1>
+        <p>Neural Forge</p>
+        <div class="phase-tag" id="phase">boot</div>
+      </div>
+
+      <div class="footer">
+        <div class="status" id="status">Запуск…</div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+      </div>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const fillEl = document.getElementById('fill');
+      const shellEl = document.getElementById('shell');
+      const phaseEl = document.getElementById('phase');
+      let progress = 4;
+
+      const phaseLabels = {
+        boot: 'инициализация',
+        backend: 'backend',
+        ollama_server: 'ollama',
+        model: 'модель',
+        model_pending: 'модель',
+        online_config: 'online api',
+        ui: 'интерфейс',
+        ready: 'готово',
+      };
+
+      function setProgress(value, message, options = {}) {
+        progress = Math.max(progress, Math.min(100, Number(value) || 0));
+        fillEl.style.width = progress + '%';
+        if (message) statusEl.textContent = message;
+        if (options.phase && phaseLabels[options.phase]) {
+          phaseEl.textContent = phaseLabels[options.phase];
+        }
+        if (options.error) shellEl.classList.add('error');
+        if (progress >= 100) shellEl.classList.add('done');
+      }
+
+      setProgress(4, 'Инициализация CoreX…', { phase: 'boot' });
+
+      if (window.splashAPI?.onUpdate) {
+        window.splashAPI.onUpdate((payload) => {
+          setProgress(payload?.progress ?? progress, payload?.message, {
+            phase: payload?.phase,
+            error: payload?.error,
+          });
+        });
+      }
+
+      const canvas = document.getElementById('fx');
+      const ctx = canvas.getContext('2d');
+      let w = 0;
+      let h = 0;
+      let t = 0;
+      const nodes = [];
+      const sparks = [];
+
+      function resize() {
+        w = canvas.width = window.innerWidth * devicePixelRatio;
+        h = canvas.height = window.innerHeight * devicePixelRatio;
+        canvas.style.width = window.innerWidth + 'px';
+        canvas.style.height = window.innerHeight + 'px';
+        if (nodes.length < 18) {
+          nodes.length = 0;
+          for (let i = 0; i < 22; i += 1) {
+            nodes.push({
+              x: Math.random() * w,
+              y: Math.random() * h,
+              vx: (Math.random() - 0.5) * 0.45,
+              vy: (Math.random() - 0.5) * 0.45,
+              hue: Math.random() > 0.5 ? 195 : 270,
+            });
+          }
+        }
+      }
+
+      function frame() {
+        t += 0.016;
+        ctx.clearRect(0, 0, w, h);
+
+        const cx = w * 0.5;
+        const cy = h * 0.4;
+
+        for (const n of nodes) {
+          n.x += n.vx * devicePixelRatio;
+          n.y += n.vy * devicePixelRatio;
+          const dx = cx - n.x;
+          const dy = cy - n.y;
+          n.vx += dx * 0.000015;
+          n.vy += dy * 0.000015;
+          if (n.x < 0 || n.x > w) n.vx *= -1;
+          if (n.y < 0 || n.y > h) n.vy *= -1;
+        }
+
+        for (let i = 0; i < nodes.length; i += 1) {
+          for (let j = i + 1; j < nodes.length; j += 1) {
+            const a = nodes[i];
+            const b = nodes[j];
+            const dist = Math.hypot(a.x - b.x, a.y - b.y);
+            if (dist > 140 * devicePixelRatio) continue;
+            const alpha = (1 - dist / (140 * devicePixelRatio)) * 0.35;
+            const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+            grad.addColorStop(0, `hsla(${a.hue}, 90%, 65%, ${alpha})`);
+            grad.addColorStop(1, `hsla(${b.hue}, 90%, 65%, ${alpha * 0.6})`);
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 1.1 * devicePixelRatio;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+
+        for (const n of nodes) {
+          const pulse = 1 + Math.sin(t * 3 + n.x * 0.01) * 0.25;
+          ctx.beginPath();
+          ctx.fillStyle = `hsla(${n.hue}, 95%, 70%, 0.85)`;
+          ctx.arc(n.x, n.y, 2.2 * pulse * devicePixelRatio, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        if (Math.random() < 0.12) {
+          sparks.push({
+            x: cx + (Math.random() - 0.5) * 120 * devicePixelRatio,
+            y: cy + (Math.random() - 0.5) * 80 * devicePixelRatio,
+            vx: (Math.random() - 0.5) * 2.5,
+            vy: (Math.random() - 0.5) * 2.5,
+            life: 1,
+          });
+        }
+
+        for (let i = sparks.length - 1; i >= 0; i -= 1) {
+          const s = sparks[i];
+          s.x += s.vx * devicePixelRatio;
+          s.y += s.vy * devicePixelRatio;
+          s.life -= 0.028;
+          if (s.life <= 0) {
+            sparks.splice(i, 1);
+            continue;
+          }
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(0, 210, 255, ${s.life * 0.9})`;
+          ctx.arc(s.x, s.y, 1.8 * s.life * devicePixelRatio, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        requestAnimationFrame(frame);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "slider": 72,
+  "turns_limit_enabled": false,
+  "turns_limit_mode": "team",
+  "team_max_total_turns": 75,
+  "team_max_turns_per_step": 26,
+  "per_agent_turns": {
+    "ui-ux-designer": 12,
+    "lead-developer": 16,
+    "qa-engineer": 10
+  },
+  "unlimited_limits": true,
+  "step_by_step_enabled": true,
+  "design_folder_path": "design-system"
+}

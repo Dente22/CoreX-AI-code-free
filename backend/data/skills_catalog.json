@@ -1,0 +1,641 @@
+{
+  "skills": [
+    {
+      "id": "agent-harness-construction",
+      "name": "Agent Harness Construction",
+      "category": "AI-агенты",
+      "description": "Сборка agent harness",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "agentic-engineering",
+      "name": "Agentic Engineering",
+      "category": "AI-агенты",
+      "description": "Agentic engineering",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "ai-first-engineering",
+      "name": "Ai First Engineering",
+      "category": "AI-агенты",
+      "description": "AI-first подход к разработке",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "android-clean-architecture",
+      "name": "Android Clean Architecture",
+      "category": "Мобильные",
+      "description": "Clean Architecture на Android",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "api-design",
+      "name": "Api Design",
+      "category": "Общее",
+      "description": "Проектирование API",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "article-writing",
+      "name": "Article Writing",
+      "category": "Контент",
+      "description": "Написание статей",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "autonomous-loops",
+      "name": "Autonomous Loops",
+      "category": "AI-агенты",
+      "description": "Автономные циклы агента",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "backend-patterns",
+      "name": "Backend Patterns",
+      "category": "Общее",
+      "description": "Паттерны бэкенда",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "blueprint",
+      "name": "Blueprint",
+      "category": "Прочее",
+      "description": "Blueprint-шаблоны",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "carrier-relationship-management",
+      "name": "Carrier Relationship Management",
+      "category": "Логистика",
+      "description": "Управление перевозчиками",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "clickhouse-io",
+      "name": "Clickhouse Io",
+      "category": "БД",
+      "description": "ClickHouse",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "coding-standards",
+      "name": "Coding Standards",
+      "category": "Общее",
+      "description": "Стандарты кода",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "compose-multiplatform-patterns",
+      "name": "Compose Multiplatform Patterns",
+      "category": "Мобильные",
+      "description": "Compose Multiplatform",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "configure-ecc",
+      "name": "Configure Ecc",
+      "category": "AI-агенты",
+      "description": "Настройка Everything Claude Code",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "content-engine",
+      "name": "Content Engine",
+      "category": "Контент",
+      "description": "Контент-движок",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "content-hash-cache-pattern",
+      "name": "Content Hash Cache Pattern",
+      "category": "AI-агенты",
+      "description": "Кэш по хэшу контента",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "continuous-agent-loop",
+      "name": "Continuous Agent Loop",
+      "category": "AI-агенты",
+      "description": "Непрерывный agent loop",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "continuous-learning",
+      "name": "Continuous Learning",
+      "category": "AI-агенты",
+      "description": "Обучение на сессиях",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "continuous-learning-v2",
+      "name": "Continuous Learning V2",
+      "category": "AI-агенты",
+      "description": "Обучение v2",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "cost-aware-llm-pipeline",
+      "name": "Cost Aware Llm Pipeline",
+      "category": "AI-агенты",
+      "description": "Экономия токенов LLM",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "cpp-coding-standards",
+      "name": "Cpp Coding Standards",
+      "category": "C++",
+      "description": "Стандарты C++",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "cpp-testing",
+      "name": "Cpp Testing",
+      "category": "C++",
+      "description": "Тестирование C++",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "customs-trade-compliance",
+      "name": "Customs Trade Compliance",
+      "category": "Логистика",
+      "description": "Таможенное соответствие",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "database-migrations",
+      "name": "Database Migrations",
+      "category": "Общее",
+      "description": "Миграции БД",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "deployment-patterns",
+      "name": "Deployment Patterns",
+      "category": "Общее",
+      "description": "Паттерны деплоя",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "django-patterns",
+      "name": "Django Patterns",
+      "category": "Python",
+      "description": "Паттерны Django",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "django-security",
+      "name": "Django Security",
+      "category": "Python",
+      "description": "Безопасность Django",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "django-tdd",
+      "name": "Django Tdd",
+      "category": "Python",
+      "description": "TDD Django",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "django-verification",
+      "name": "Django Verification",
+      "category": "Python",
+      "description": "Верификация Django",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "docker-patterns",
+      "name": "Docker Patterns",
+      "category": "Общее",
+      "description": "Docker",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "e2e-testing",
+      "name": "E2E Testing",
+      "category": "Общее",
+      "description": "E2E тесты",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "energy-procurement",
+      "name": "Energy Procurement",
+      "category": "Логистика",
+      "description": "Закупка энергии",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "enterprise-agent-ops",
+      "name": "Enterprise Agent Ops",
+      "category": "AI-агенты",
+      "description": "Enterprise ops для агентов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "eval-harness",
+      "name": "Eval Harness",
+      "category": "Общее",
+      "description": "Eval harness",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "everything-claude-code",
+      "name": "Everything Claude Code",
+      "category": "AI-агенты",
+      "description": "Мета-скилл ECC",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "foundation-models-on-device",
+      "name": "Foundation Models On Device",
+      "category": "Мобильные",
+      "description": "On-device ML (Apple)",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "frontend-patterns",
+      "name": "Frontend Patterns",
+      "category": "Общее",
+      "description": "Паттерны фронтенда",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "frontend-slides",
+      "name": "Frontend Slides",
+      "category": "Контент",
+      "description": "UI-слайды",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "golang-patterns",
+      "name": "Golang Patterns",
+      "category": "Go",
+      "description": "Паттерны Go",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "golang-testing",
+      "name": "Golang Testing",
+      "category": "Go",
+      "description": "Тесты Go",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "inventory-demand-planning",
+      "name": "Inventory Demand Planning",
+      "category": "Логистика",
+      "description": "Планирование запасов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "investor-materials",
+      "name": "Investor Materials",
+      "category": "Бизнес",
+      "description": "Материалы для инвесторов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "investor-outreach",
+      "name": "Investor Outreach",
+      "category": "Бизнес",
+      "description": "Outreach инвесторам",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "iterative-retrieval",
+      "name": "Iterative Retrieval",
+      "category": "Общее",
+      "description": "Итеративный поиск контекста",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "java-coding-standards",
+      "name": "Java Coding Standards",
+      "category": "Java",
+      "description": "Стандарты Java",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "jpa-patterns",
+      "name": "Jpa Patterns",
+      "category": "Java",
+      "description": "JPA паттерны",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "kotlin-coroutines-flows",
+      "name": "Kotlin Coroutines Flows",
+      "category": "Мобильные",
+      "description": "Kotlin coroutines/flows",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "liquid-glass-design",
+      "name": "Liquid Glass Design",
+      "category": "UI",
+      "description": "Liquid Glass дизайн",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "logistics-exception-management",
+      "name": "Logistics Exception Management",
+      "category": "Логистика",
+      "description": "Исключения в логистике",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "market-research",
+      "name": "Market Research",
+      "category": "Бизнес",
+      "description": "Исследование рынка",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "nanoclaw-repl",
+      "name": "Nanoclaw Repl",
+      "category": "AI-агенты",
+      "description": "REPL для агентов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "nutrient-document-processing",
+      "name": "Nutrient Document Processing",
+      "category": "Документы",
+      "description": "Обработка документов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "perl-patterns",
+      "name": "Perl Patterns",
+      "category": "Perl",
+      "description": "Паттерны Perl",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "perl-security",
+      "name": "Perl Security",
+      "category": "Perl",
+      "description": "Безопасность Perl",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "perl-testing",
+      "name": "Perl Testing",
+      "category": "Perl",
+      "description": "Тесты Perl",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "plankton-code-quality",
+      "name": "Plankton Code Quality",
+      "category": "Прочее",
+      "description": "Качество кода Plankton",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "postgres-patterns",
+      "name": "Postgres Patterns",
+      "category": "БД",
+      "description": "PostgreSQL",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "production-scheduling",
+      "name": "Production Scheduling",
+      "category": "Логистика",
+      "description": "Планирование производства",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "project-guidelines-example",
+      "name": "Project Guidelines Example",
+      "category": "Общее",
+      "description": "Пример правил проекта",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "python-patterns",
+      "name": "Python Patterns",
+      "category": "Python",
+      "description": "Паттерны Python",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "python-testing",
+      "name": "Python Testing",
+      "category": "Python",
+      "description": "Тесты Python",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "quality-nonconformance",
+      "name": "Quality Nonconformance",
+      "category": "Логистика",
+      "description": "Несоответствия качества",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "ralphinho-rfc-pipeline",
+      "name": "Ralphinho Rfc Pipeline",
+      "category": "AI-агенты",
+      "description": "RFC pipeline",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "regex-vs-llm-structured-text",
+      "name": "Regex Vs Llm Structured Text",
+      "category": "AI-агенты",
+      "description": "Regex vs LLM для текста",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "returns-reverse-logistics",
+      "name": "Returns Reverse Logistics",
+      "category": "Логистика",
+      "description": "Обратная логистика",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "search-first",
+      "name": "Search First",
+      "category": "Общее",
+      "description": "Сначала поиск в кодовой базе",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "security-review",
+      "name": "Security Review",
+      "category": "Безопасность",
+      "description": "Security review",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "security-scan",
+      "name": "Security Scan",
+      "category": "Безопасность",
+      "description": "Сканирование безопасности",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "skill-stocktake",
+      "name": "Skill Stocktake",
+      "category": "AI-агенты",
+      "description": "Инвентаризация скиллов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "springboot-patterns",
+      "name": "Springboot Patterns",
+      "category": "Java",
+      "description": "Spring Boot паттерны",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "springboot-security",
+      "name": "Springboot Security",
+      "category": "Java",
+      "description": "Spring Security",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "springboot-tdd",
+      "name": "Springboot Tdd",
+      "category": "Java",
+      "description": "TDD Spring Boot",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "springboot-verification",
+      "name": "Springboot Verification",
+      "category": "Java",
+      "description": "Верификация Spring Boot",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "strategic-compact",
+      "name": "Strategic Compact",
+      "category": "Общее",
+      "description": "Сжатие контекста",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "swift-actor-persistence",
+      "name": "Swift Actor Persistence",
+      "category": "Swift",
+      "description": "Actor persistence",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "swift-concurrency-6-2",
+      "name": "Swift Concurrency 6 2",
+      "category": "Swift",
+      "description": "Swift Concurrency 6.2",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "swift-protocol-di-testing",
+      "name": "Swift Protocol Di Testing",
+      "category": "Swift",
+      "description": "Protocol DI testing",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "swiftui-patterns",
+      "name": "Swiftui Patterns",
+      "category": "Swift",
+      "description": "SwiftUI паттерны",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "tdd-workflow",
+      "name": "Tdd Workflow",
+      "category": "Общее",
+      "description": "TDD workflow",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "verification-loop",
+      "name": "Verification Loop",
+      "category": "Общее",
+      "description": "Цикл верификации",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "videodb",
+      "name": "Videodb",
+      "category": "Документы",
+      "description": "VideoDB",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "visa-doc-translate",
+      "name": "Visa Doc Translate",
+      "category": "Документы",
+      "description": "Перевод визовых документов",
+      "source": "everything-claude-code"
+    },
+    {
+      "id": "agent-browser",
+      "name": "Agent Browser",
+      "category": "Демо/BP",
+      "description": "Автоматизация браузера (CLI)",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "weather-fetcher",
+      "name": "Weather Fetcher",
+      "category": "Демо/BP",
+      "description": "Демо: погода API",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "weather-svg-creator",
+      "name": "Weather Svg Creator",
+      "category": "Демо/BP",
+      "description": "Демо: SVG погоды",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "time-skill",
+      "name": "Time Skill",
+      "category": "Демо/BP",
+      "description": "Демо: время",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "time-fetcher",
+      "name": "Time Fetcher",
+      "category": "Демо/BP",
+      "description": "Время (agent-teams)",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "time-svg-creator",
+      "name": "Time Svg Creator",
+      "category": "Демо/BP",
+      "description": "SVG времени",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "presentation-structure",
+      "name": "Presentation Structure",
+      "category": "Демо/BP",
+      "description": "Структура презентаций",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "presentation-styling",
+      "name": "Presentation Styling",
+      "category": "Демо/BP",
+      "description": "Стили презентаций",
+      "source": "claude-code-best-practice"
+    },
+    {
+      "id": "vibe-to-agentic-framework",
+      "name": "Vibe To Agentic Framework",
+      "category": "Демо/BP",
+      "description": "Vibe → Agentic framework",
+      "source": "claude-code-best-practice"
+    }
+  ]
+}
