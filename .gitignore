@@ -1,0 +1,23 @@
+frontend/vendor/
+frontend/release/
+frontend/dist/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+.venv/
+.venv-*/
+.tools/
+ollama_models/
+ui-design-backup/
+*.log
+
+# Secrets must never ship with the project folder
+chat/ai_online_providers.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json

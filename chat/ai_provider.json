@@ -1,0 +1,5 @@
+{
+  "provider_id": "ollama-lite",
+  "model_name": "phi3:mini",
+  "provider_type": "ollama"
+}

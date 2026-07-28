@@ -1,0 +1,28 @@
+{
+  "id": "quick-fix",
+  "name": "Быстрое исправление",
+  "description": "Разработчик → ревьюер (без отдельного QA-этапа)",
+  "limits": {
+    "max_total_turns": 14,
+    "max_turns_per_step": 7,
+    "max_file_writes": 8,
+    "delay_between_turns_ms": 500,
+    "delay_between_steps_ms": 2000
+  },
+  "steps": [
+    {
+      "agent_id": "lead-developer",
+      "role": "Старший разработчик",
+      "goal": "Исправь баг или внеси точечное изменение.",
+      "max_turns": 7,
+      "allow_writes": true
+    },
+    {
+      "agent_id": "code-reviewer",
+      "role": "Ревьюер кода",
+      "goal": "run_file main.py. Оставшиеся баги — write_file и run_file снова. done только без ошибок запуска.",
+      "max_turns": 5,
+      "allow_writes": true
+    }
+  ]
+}

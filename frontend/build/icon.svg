@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="chamber" x1="40" y1="32" x2="216" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A1030"/>
+      <stop offset="1" stop-color="#0A1424"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="32" y1="48" x2="224" y2="208" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9A5EFF" stop-opacity="0.7"/>
+      <stop offset="0.5" stop-color="#00D2FF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="beam-p" x1="70" y1="70" x2="186" y2="186" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C49AFF"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="beam-c" x1="186" y1="70" x2="70" y2="186" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DF5FF"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+    <radialGradient id="pulse" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(128 128) rotate(90) scale(44)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.25" stop-color="#00D2FF" stop-opacity="0.75"/>
+      <stop offset="0.7" stop-color="#9A5EFF" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#9A5EFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="24" y="24" width="208" height="208" rx="54" fill="url(#chamber)"/>
+  <rect x="24" y="24" width="208" height="208" rx="54" stroke="url(#rim)" stroke-width="3"/>
+  <circle cx="128" cy="128" r="84" stroke="#9A5EFF" stroke-opacity="0.16" stroke-width="2" stroke-dasharray="9 13"/>
+  <path d="M76 76L180 180" stroke="url(#beam-p)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M180 76L76 180" stroke="url(#beam-c)" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="128" cy="128" r="40" fill="url(#pulse)"/>
+  <path d="M128 104L146 114V138L128 148L110 138V114L128 104Z" fill="#0B0F17" stroke="#00D2FF" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="128" cy="128" r="6" fill="#FFFFFF"/>
+  <circle cx="128" cy="54" r="9" fill="#00D2FF"/>
+  <circle cx="68" cy="178" r="9" fill="#9A5EFF"/>
+  <circle cx="188" cy="178" r="9" fill="#00D2FF"/>
+  <circle cx="128" cy="54" r="4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <circle cx="68" cy="178" r="4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <circle cx="188" cy="178" r="4" fill="#FFFFFF" fill-opacity="0.85"/>
+  <path d="M128 128V66" stroke="#00D2FF" stroke-width="2" stroke-opacity="0.4" stroke-linecap="round"/>
+  <path d="M128 128L76 170" stroke="#9A5EFF" stroke-width="2" stroke-opacity="0.4" stroke-linecap="round"/>
+  <path d="M128 128L180 170" stroke="#00D2FF" stroke-width="2" stroke-opacity="0.4" stroke-linecap="round"/>
+</svg>

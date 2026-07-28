@@ -1,0 +1,35 @@
+{
+  "id": "dev-team",
+  "name": "Команда разработки",
+  "description": "Разработчик пишет код → Тестировщик добавляет тесты → Ревьюер проверяет ошибки",
+  "limits": {
+    "max_total_turns": 22,
+    "max_turns_per_step": 7,
+    "max_file_writes": 10,
+    "delay_between_turns_ms": 600,
+    "delay_between_steps_ms": 2500
+  },
+  "steps": [
+    {
+      "persona_id": "developer",
+      "role": "Разработчик",
+      "goal": "Реализуй задачу: напиши или измени код. Один файл за ход. Следуй плану.",
+      "max_turns": 7,
+      "allow_writes": true
+    },
+    {
+      "persona_id": "tester",
+      "role": "Тестировщик",
+      "goal": "Прочитай созданный код. Добавь тесты и проверь граничные случаи. Исправь явные баги в тестах.",
+      "max_turns": 6,
+      "allow_writes": true
+    },
+    {
+      "persona_id": "reviewer",
+      "role": "Ревьюер",
+      "goal": "Проведи code review: безопасность, стиль, дублирование. Внеси только критичные правки.",
+      "max_turns": 5,
+      "allow_writes": true
+    }
+  ]
+}

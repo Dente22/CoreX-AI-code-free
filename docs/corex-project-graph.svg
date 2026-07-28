@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 1020" width="1480" height="1020" role="img" aria-labelledby="title desc">
+  <title id="title">CoreX � ????????? ???? ???????</title>
+  <desc id="desc">????????????? ???? ????? ? ?????: Electron, React, Python backend, Ollama, skills</desc>
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1480" height="1020" fill="#f1f5f9"/>
+  <rect x="20" y="20" width="1440" height="980" rx="18" fill="#ffffff" stroke="#e2e8f0"/>
+
+  <text x="48" y="64" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#0f172a">CoreX � ????????? ????</text>
+  <text x="48" y="90" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#64748b">???? = ?????? � ????? = runtime / HTTP / WS / ??????????? � SVG</text>
+
+  <!-- Lane labels -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#94a3b8" letter-spacing="0.12em">
+    <text x="60" y="130">CLIENT</text>
+    <text x="260" y="130">SHELL</text>
+    <text x="500" y="130">REACT UI</text>
+    <text x="820" y="130">GATEWAY</text>
+    <text x="1080" y="130">BACKEND</text>
+    <text x="1320" y="130">EXT</text>
+  </g>
+  <g stroke="#f1f5f9" stroke-width="1">
+    <line x1="230" y1="140" x2="230" y2="900"/>
+    <line x1="470" y1="140" x2="470" y2="900"/>
+    <line x1="790" y1="140" x2="790" y2="900"/>
+    <line x1="1050" y1="140" x2="1050" y2="900"/>
+    <line x1="1300" y1="140" x2="1300" y2="900"/>
+  </g>
+
+  <!-- Edges -->
+  <g fill="none" stroke-linecap="round">
+    <!-- user -> bat -->
+    <path d="M180,210 H250" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <!-- bat -> electron -->
+    <path d="M340,236 V268" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <!-- electron -> CoreXApp -->
+    <path d="M430,310 H500" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <!-- electron -> backend main (over gateway) -->
+    <path d="M340,360 V400 H860 V210 H1080" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <!-- CoreXApp -> panels -->
+    <path d="M610,246 V278" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M610,348 V370" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M610,440 V462" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M610,532 V554" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- UI -> gateway -->
+    <path d="M720,310 H820" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <path d="M720,400 C760,400 780,280 820,250" stroke="#2563eb" stroke-width="1.75" marker-end="url(#arrB)"/>
+    <path d="M720,490 C760,490 780,320 820,300" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- gateway internal -->
+    <path d="M900,246 V270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M900,360 V382" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M900,452 V474" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- gateway -> backend -->
+    <path d="M980,210 H1080" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <path d="M980,310 H1080" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M980,410 H1080" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M980,500 H1080" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- main -> services -->
+    <path d="M1180,246 V278" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <path d="M1180,348 V370" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M1180,438 V460" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M1180,528 V550" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <path d="M1180,618 V640" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- orchestrator -> externals -->
+    <path d="M1280,310 H1320 V430" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <path d="M1280,320 C1300,340 1310,480 1320,510" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <path d="M1280,400 H1320 V590" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <path d="M1280,490 C1300,520 1310,650 1320,670" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <!-- knowledge packs -> backend -->
+    <path d="M720,680 C860,680 980,620 1080,590" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <path d="M720,760 C900,760 1000,680 1080,660" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <path d="M720,840 C920,840 1020,720 1080,700" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+  </g>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">
+    <text x="190" y="200">start</text>
+    <text x="450" y="300">UI</text>
+    <text x="740" y="300">HTTP/WS</text>
+    <text x="1000" y="200">dispatch</text>
+    <text x="1290" y="400">LLM</text>
+    <text x="900" y="660">catalog</text>
+  </g>
+
+  <!-- CLIENT -->
+  <g>
+    <rect x="48" y="170" width="150" height="80" rx="12" fill="#eff6ff" stroke="#93c5fd"/>
+    <text x="123" y="206" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1e3a8a">User / Dev</text>
+    <text x="123" y="226" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#3b82f6">desktop</text>
+  </g>
+
+  <!-- SHELL -->
+  <g>
+    <rect x="250" y="170" width="180" height="66" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="340" y="198" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a">start-corex.bat</text>
+    <text x="340" y="216" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">launcher � splash</text>
+
+    <rect x="250" y="268" width="180" height="92" rx="12" fill="#0f172a" stroke="#0f172a"/>
+    <text x="340" y="306" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">Electron</text>
+    <text x="340" y="328" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#cbd5e1">electron.cjs</text>
+    <text x="340" y="344" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">spawn Python</text>
+  </g>
+
+  <!-- REACT UI -->
+  <g>
+    <rect x="500" y="170" width="220" height="76" rx="12" fill="#ecfdf5" stroke="#34d399"/>
+    <text x="610" y="202" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">CoreXApp</text>
+    <text x="610" y="222" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#047857">frontend/src/app</text>
+
+    <rect x="500" y="278" width="220" height="70" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="610" y="308" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#0f172a">AIChatPanel</text>
+    <text x="610" y="328" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">chat � personas � pipelines</text>
+
+    <rect x="500" y="370" width="220" height="70" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="610" y="400" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#0f172a">Editor + Files</text>
+    <text x="610" y="420" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">CodeEditor � FileExplorer</text>
+
+    <rect x="500" y="462" width="220" height="70" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="610" y="492" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#0f172a">Models / Providers</text>
+    <text x="610" y="512" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Ollama pull � online LLM</text>
+
+    <rect x="500" y="554" width="220" height="70" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="610" y="584" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#0f172a">Terminal � Trace � Visio</text>
+    <text x="610" y="604" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">ops surfaces</text>
+
+    <rect x="500" y="650" width="220" height="60" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="610" y="676" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9a3412">chat/</text>
+    <text x="610" y="694" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#c2410c">memory � personas</text>
+
+    <rect x="500" y="730" width="220" height="60" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="610" y="756" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9a3412">core_x_skills/</text>
+    <text x="610" y="774" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#c2410c">skill catalog</text>
+
+    <rect x="500" y="810" width="220" height="60" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="610" y="836" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9a3412">agents / knowledge</text>
+    <text x="610" y="854" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#c2410c">teams � rules</text>
+  </g>
+
+  <!-- GATEWAY -->
+  <g>
+    <rect x="820" y="170" width="160" height="76" rx="12" fill="#dbeafe" stroke="#60a5fa"/>
+    <text x="900" y="202" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1e40af">HTTP API</text>
+    <text x="900" y="222" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2563eb">36 /api routes</text>
+
+    <rect x="820" y="270" width="160" height="90" rx="12" fill="#dbeafe" stroke="#60a5fa"/>
+    <text x="900" y="306" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1e40af">WebSocket</text>
+    <text x="900" y="326" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2563eb">ws_server</text>
+    <text x="900" y="342" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Socket.IO</text>
+
+    <rect x="820" y="382" width="160" height="70" rx="10" fill="#ffffff" stroke="#bfdbfe"/>
+    <text x="900" y="412" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1e3a8a">/api/ai/*</text>
+    <text x="900" y="432" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">runtime � ollama</text>
+
+    <rect x="820" y="474" width="160" height="70" rx="10" fill="#ffffff" stroke="#bfdbfe"/>
+    <text x="900" y="504" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1e3a8a">/api/files � chat</text>
+    <text x="900" y="524" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">sessions � tree</text>
+  </g>
+
+  <!-- BACKEND -->
+  <g>
+    <rect x="1080" y="170" width="200" height="76" rx="12" fill="#0f172a" stroke="#0f172a"/>
+    <text x="1180" y="202" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#ffffff">backend/main.py</text>
+    <text x="1180" y="222" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">aiohttp � entry</text>
+
+    <rect x="1080" y="278" width="200" height="70" rx="10" fill="#fef3c7" stroke="#f59e0b"/>
+    <text x="1180" y="308" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#92400e">orchestrator</text>
+    <text x="1180" y="328" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#b45309">agent loop � pipelines</text>
+
+    <rect x="1080" y="370" width="200" height="68" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="1180" y="400" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">llm_runtime / ollama_*</text>
+    <text x="1180" y="418" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">local + online providers</text>
+
+    <rect x="1080" y="460" width="200" height="68" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="1180" y="490" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">file_service � patch</text>
+    <text x="1180" y="508" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">project filesystem</text>
+
+    <rect x="1080" y="550" width="200" height="68" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="1180" y="580" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">chat � personas � skills</text>
+    <text x="1180" y="598" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">catalog � memory</text>
+
+    <rect x="1080" y="640" width="200" height="68" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+    <text x="1180" y="670" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">terminal � trace � limits</text>
+    <text x="1180" y="688" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">ops / remediation</text>
+  </g>
+
+  <!-- EXTERNAL -->
+  <g>
+    <rect x="1320" y="420" width="120" height="56" rx="10" fill="#f5f3ff" stroke="#c4b5fd"/>
+    <text x="1380" y="444" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#5b21b6">Ollama</text>
+    <text x="1380" y="462" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#7c3aed">local LLM</text>
+
+    <rect x="1320" y="500" width="120" height="56" rx="10" fill="#f5f3ff" stroke="#c4b5fd"/>
+    <text x="1380" y="524" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#5b21b6">Online LLM</text>
+    <text x="1380" y="542" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#7c3aed">Gemini / APIs</text>
+
+    <rect x="1320" y="580" width="120" height="56" rx="10" fill="#ecfdf5" stroke="#6ee7b7"/>
+    <text x="1380" y="604" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#065f46">Filesystem</text>
+    <text x="1380" y="622" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#047857">project root</text>
+
+    <rect x="1320" y="660" width="120" height="56" rx="10" fill="#fef3c7" stroke="#fbbf24"/>
+    <text x="1380" y="684" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">models/</text>
+    <text x="1380" y="702" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">GGUF</text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(48, 920)">
+    <text x="0" y="0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#0f172a">???????</text>
+    <line x1="0" y1="22" x2="36" y2="22" stroke="#2563eb" stroke-width="2" marker-end="url(#arrB)"/>
+    <text x="44" y="26" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#475569">runtime / HTTP / WS</text>
+    <line x1="220" y1="22" x2="256" y2="22" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrD)"/>
+    <text x="264" y="26" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#475569">??????? / ????????</text>
+    <rect x="440" y="12" width="12" height="12" rx="2" fill="#ecfdf5" stroke="#34d399"/>
+    <text x="458" y="22" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#475569">UI</text>
+    <rect x="500" y="12" width="12" height="12" rx="2" fill="#dbeafe" stroke="#60a5fa"/>
+    <text x="518" y="22" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#475569">API</text>
+    <rect x="560" y="12" width="12" height="12" rx="2" fill="#fef3c7" stroke="#f59e0b"/>
+    <text x="578" y="22" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#475569">???????????</text>
+    <rect x="680" y="12" width="12" height="12" rx="2" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="698" y="22" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#475569">knowledge</text>
+  </g>
+
+  <text x="48" y="980" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">docs/corex-project-graph.svg � ????????? SVG � Jul 2026</text>
+</svg>

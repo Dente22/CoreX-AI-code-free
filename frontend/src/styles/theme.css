@@ -1,0 +1,133 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 15px;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #9a5eff;
+  --primary-foreground: #ffffff;
+  --muted-foreground: #64748b;
+  --border: rgba(15, 23, 42, 0.1);
+  --ring: #9a5eff;
+  --radius: 0.625rem;
+}
+
+.dark {
+  /* Brand — Neural Forge Nexus mark */
+  --corex-brand: #9a5eff;
+  --corex-brand-dim: #7c3aed;
+  --corex-spark: #00d2ff;
+  --corex-spark-dim: #0891b2;
+
+  /* Neural Forge — deep workshop */
+  --background: #070a12;
+  --foreground: #e4e8f0;
+  --card: #0d1119;
+  --card-foreground: #e4e8f0;
+  --popover: #111620;
+  --popover-foreground: #e4e8f0;
+  --primary: #9a5eff;
+  --primary-foreground: #ffffff;
+  --secondary: #151b28;
+  --secondary-foreground: #e4e8f0;
+  --muted: #111620;
+  --muted-foreground: #7a8499;
+  --accent: #1a1030;
+  --accent-foreground: #c4b5fd;
+  --destructive: #f87171;
+  --border: rgba(154, 94, 255, 0.1);
+  --input: #151b28;
+  --ring: #00d2ff;
+
+  /* Shell surfaces */
+  --corex-shell: #070a12;
+  --corex-surface: #0d1119;
+  --corex-surface-elevated: #121820;
+  --corex-surface-hover: #181f2e;
+  --corex-sidebar: #0a0e16;
+  --corex-activity: #080b12;
+  --corex-panel: #0b0f17;
+  --corex-menubar: rgba(7, 10, 18, 0.94);
+  --corex-border: rgba(154, 94, 255, 0.12);
+  --corex-border-strong: rgba(0, 210, 255, 0.18);
+  --corex-text: #e4e8f0;
+  --corex-text-muted: #7a8499;
+  --corex-text-dim: #4d5668;
+  --corex-glow-brand: rgba(154, 94, 255, 0.25);
+  --corex-glow-spark: rgba(0, 210, 255, 0.2);
+  --corex-gradient-brand: linear-gradient(135deg, #9a5eff 0%, #7c3aed 100%);
+  --corex-gradient-spark: linear-gradient(135deg, #00d2ff 0%, #0891b2 100%);
+  --corex-gradient-neural: linear-gradient(135deg, #9a5eff 0%, #00d2ff 100%);
+  --corex-welcome-bg:
+    radial-gradient(ellipse 70% 50% at 15% 20%, rgba(154, 94, 255, 0.14), transparent),
+    radial-gradient(ellipse 50% 40% at 85% 75%, rgba(0, 210, 255, 0.1), transparent),
+    #070a12;
+  --corex-statusbar: #0a0e16;
+  --corex-grid: rgba(154, 94, 255, 0.04);
+
+  /* Mode semantics */
+  --corex-mode-skill: #00d2ff;
+  --corex-mode-agent: #9a5eff;
+  --corex-mode-team: linear-gradient(90deg, #9a5eff, #00d2ff);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    font-size: var(--font-size);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@keyframes corex-pull-indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+.corex-pull-indeterminate {
+  animation: corex-pull-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes corex-pulse-spark {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 210, 255, 0); }
+  50% { opacity: 1; box-shadow: 0 0 12px 2px rgba(0, 210, 255, 0.35); }
+}
+
+.corex-pulse-spark {
+  animation: corex-pulse-spark 2.5s ease-in-out infinite;
+}
+
+@keyframes corex-grid-drift {
+  0% { background-position: 0 0; }
+  100% { background-position: 32px 32px; }
+}
