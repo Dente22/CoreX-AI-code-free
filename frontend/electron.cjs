@@ -4,7 +4,7 @@ const os = require('os');
 const net = require('net');
 const http = require('http');
 const { spawn } = require('child_process');
-const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard } = require('electron');
 let autoUpdater = null;
 try {
   ({ autoUpdater } = require('electron-updater'));
@@ -17,10 +17,24 @@ const {
   resolvePythonSpawnArgs,
   shouldEnableAutoUpdates,
   resolveBackendHealthTimeoutMs,
+  isOllamaLaunchSkippable,
+  CHROME_USER_AGENT,
+  isHttpUrl,
+  shouldOpenAuthInSystemBrowser,
   SHUTDOWN_HTTP_TIMEOUT_MS,
   killPidTreeSync,
   killCoreXRuntimeSync,
+  preferIntegratedGpuForUi,
 } = require('./electronBootstrap.cjs');
+
+// Must run before requestSingleInstanceLock / whenReady. On Intel+NVIDIA
+// the UI stays on the iGPU; NVIDIA is reserved for Ollama.
+preferIntegratedGpuForUi({
+  platform: process.platform,
+  commandLine: app.commandLine,
+  execPath: process.execPath,
+  spawn,
+});
 
 const isDev = !app.isPackaged;
 const ROOT_DIR = resolveProjectRoot({
@@ -569,6 +583,17 @@ function httpGetJson(url, timeoutMs = 4000) {
   });
 }
 
+async function waitForSplashOllamaChoice() {
+  return new Promise((resolve) => {
+    const finish = (action) => {
+      ipcMain.removeListener('splash-choice', onChoice);
+      resolve(action === 'continue' ? 'continue' : 'close');
+    };
+    const onChoice = (_event, action) => finish(action);
+    ipcMain.once('splash-choice', onChoice);
+  });
+}
+
 async function waitForSystemReady(port) {
   const deadline = Date.now() + READINESS_TIMEOUT_MS;
   let tick = 0;
@@ -588,6 +613,30 @@ async function waitForSystemReady(port) {
       }
       if (data?.message) {
         lastMessage = String(data.message);
+      }
+      if (isOllamaLaunchSkippable(data)) {
+        updateSplash({
+          progress: 52,
+          message: lastMessage || 'Ollama не запущена',
+          phase: 'ollama_server',
+          choice: 'ollama_missing',
+        });
+        launchLog('Ollama not running — asking to continue without it');
+        const choice = await waitForSplashOllamaChoice();
+        if (choice === 'continue') {
+          updateSplash({
+            progress: 78,
+            message: 'Продолжаем без Ollama',
+            phase: 'ollama_skipped',
+            choice: null,
+          });
+          return { ok: true, skippedOllama: true, data };
+        }
+        return {
+          ok: false,
+          reason: 'user_abort',
+          message: 'Запуск отменён',
+        };
       }
       const phase = data?.phase || 'model';
       const base = phase === 'ollama_server' ? 44 : phase === 'model' ? 52 : 48;
@@ -666,7 +715,6 @@ async function createSplashWindow() {
       preload: path.join(__dirname, 'splash-preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      backgroundThrottling: false,
     },
   });
 
@@ -727,6 +775,9 @@ async function createMainWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      javascript: true,
+      webviewTag: true,
+      sandbox: false,
     },
   });
 
@@ -769,6 +820,98 @@ ipcMain.handle('get-backend-info', () => ({
   backendPort: process.env.COREX_BACKEND_PORT || String(backendPort),
   backendUrl: process.env.COREX_BACKEND_URL || `http://127.0.0.1:${backendPort}`,
 }));
+
+ipcMain.handle('open-external', async (_event, url) => {
+  const target = String(url || '').trim();
+  if (!isHttpUrl(target)) {
+    return { ok: false };
+  }
+  await shell.openExternal(target);
+  return { ok: true };
+});
+
+ipcMain.handle('copy-text', (_event, text) => {
+  clipboard.writeText(String(text || ''));
+  return { ok: true };
+});
+
+function notifyAuthOpenedExternally(url) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('auth-opened-externally', url);
+  }
+}
+
+let lastAuthOpenAt = 0;
+let lastAuthUrl = '';
+
+function openAuthInSystemBrowser(url) {
+  const target = String(url || '').trim();
+  if (!shouldOpenAuthInSystemBrowser(target)) {
+    return false;
+  }
+  const now = Date.now();
+  const duplicate = target === lastAuthUrl && now - lastAuthOpenAt < 2500;
+  lastAuthUrl = target;
+  lastAuthOpenAt = now;
+  if (!duplicate) {
+    void shell.openExternal(target);
+    notifyAuthOpenedExternally(target);
+  }
+  return true;
+}
+
+app.on('web-contents-created', (_event, contents) => {
+  const type = contents.getType();
+  if (type === 'webview' || type === 'window') {
+    try {
+      if (!mainWindow || contents.id !== mainWindow.webContents.id) {
+        contents.setUserAgent(CHROME_USER_AGENT);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const interceptGoogleAuth = (event, url) => {
+    if (!openAuthInSystemBrowser(url)) {
+      return;
+    }
+    event.preventDefault();
+  };
+  contents.on('will-navigate', interceptGoogleAuth);
+  contents.on('will-redirect', interceptGoogleAuth);
+
+  contents.setWindowOpenHandler(({ url }) => {
+    if (!isHttpUrl(url)) {
+      return { action: 'deny' };
+    }
+    if (openAuthInSystemBrowser(url)) {
+      return { action: 'deny' };
+    }
+    if (type === 'webview') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 520,
+          height: 760,
+          autoHideMenuBar: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            javascript: true,
+            sandbox: true,
+            webviewTag: false,
+          },
+        },
+      };
+    }
+    if (mainWindow && !mainWindow.isDestroyed() && contents.id === mainWindow.webContents.id) {
+      mainWindow.webContents.send('open-in-app-browser', url);
+      return { action: 'deny' };
+    }
+    return { action: 'deny' };
+  });
+});
 
 ipcMain.handle('get-app-version', () => app.getVersion());
 ipcMain.handle('pick-installer-update', async () => {
@@ -843,6 +986,11 @@ app.whenReady().then(async () => {
         updateSplash({ progress: 40, message: 'Подготовка модели и сервисов…', phase: 'ollama_server' });
         const ready = await waitForSystemReady(backendPort);
         if (!ready.ok) {
+          if (ready.reason === 'user_abort') {
+            const abortError = new Error('Запуск отменён');
+            abortError.code = 'USER_ABORT';
+            throw abortError;
+          }
           throw new Error(ready.message || ready.reason || 'AI не готов');
         }
         launchLog(`System ready: ${ready.data?.phase || 'ok'}`);
@@ -851,6 +999,10 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('[CoreX] Launch failed:', error);
     launchLog(`Launch failed: ${error?.message || error}`);
+    if (error?.code === 'USER_ABORT') {
+      await finalizeShutdown();
+      return;
+    }
     const detail = String(error?.message || error || '');
     await abortLaunchWithSplashError(
       'CoreX — запуск не удался',

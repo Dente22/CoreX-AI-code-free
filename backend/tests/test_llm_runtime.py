@@ -60,7 +60,7 @@ class TestLlmRuntime:
         active = resolve_active_llm(runtime_service, local, online)
         assert active.mode == "local"
         assert active.provider_id == "ollama-qwen"
-        assert active.model_name == "qwen2.5-coder:7b"
+        assert active.model_name == "qwen2.5-coder:3b"
         assert active.api_type == "ollama"
         assert active.client is local
 
@@ -131,7 +131,7 @@ class TestLlmRuntime:
     def test_thinking_label_for_local_and_online(self, runtime_stack):
         runtime_service, local, online = runtime_stack
         runtime_service.select_local("ollama-qwen")
-        assert "qwen2.5-coder:7b" in llm_thinking_label(resolve_active_llm(runtime_service, local, online))
+        assert "qwen2.5-coder:3b" in llm_thinking_label(resolve_active_llm(runtime_service, local, online))
 
         created = runtime_service.online_service.create_provider(
             name="Groq",
@@ -144,3 +144,40 @@ class TestLlmRuntime:
         label = llm_thinking_label(resolve_active_llm(runtime_service, local, online))
         assert "Groq" in label
         assert "llama-3.1-8b-instant" in label
+
+    @pytest.mark.asyncio
+    async def test_resolve_ready_prefers_local_over_saved_online(self, runtime_stack):
+        from core.llm_runtime import resolve_ready_llm
+
+        runtime_service, local, online = runtime_stack
+        created = runtime_service.online_service.create_provider(
+            name="OpenRouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-test",
+            model_name="openrouter/free",
+        )
+        runtime_service.set_mode("online")
+        runtime_service.select_online(created["provider"]["id"])
+        local.ready = True
+        active = await resolve_ready_llm(runtime_service, local, online)
+        assert active.mode == "local"
+        assert active.model_name == "qwen2.5-coder:3b"
+        assert active.client is local
+
+    @pytest.mark.asyncio
+    async def test_resolve_ready_falls_back_to_online_when_ollama_down(self, runtime_stack):
+        from core.llm_runtime import resolve_ready_llm
+
+        runtime_service, local, online = runtime_stack
+        created = runtime_service.online_service.create_provider(
+            name="OpenRouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-test",
+            model_name="openrouter/free",
+        )
+        runtime_service.select_online(created["provider"]["id"])
+        local.ready = False
+        online.ready = True
+        active = await resolve_ready_llm(runtime_service, local, online)
+        assert active.mode == "online"
+        assert active.client is online

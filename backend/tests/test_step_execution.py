@@ -16,14 +16,63 @@ from core.workload_limits_service import (
     save_workload_settings,
     workload_limits_summary_ru,
 )
+from core.orchestrator import IDLE_NO_CODE_TURNS
 
 
-def test_web_developer_plan_has_read_and_write_steps():
+def test_create_python_plan_is_one_complete_file():
+    steps = pick_execution_plan(
+        user_task="напиши скрипт сортировки списка",
+        coding_language="python",
+    )
+    ids = [step.id for step in steps]
+    assert ids == ["write_complete", "verify"]
+    assert "inspect" not in ids
+    assert "skeleton" not in ids
+    assert "Не каркас" in steps[0].instruction or "ПОЛНЫЙ" in steps[0].instruction
+
+
+def test_snake_plan_is_single_complete_write():
+    steps = pick_execution_plan(
+        user_task="создай змейку на питоне",
+        coding_language="python",
+    )
+    ids = [step.id for step in steps]
+    assert ids == ["write_complete", "verify"]
+    assert "inspect" not in ids
+    assert "write_game" not in ids
+
+
+def test_fix_python_plan_starts_with_inspect():
+    steps = pick_execution_plan(
+        user_task="исправь SyntaxError в main.py",
+        coding_language="python",
+    )
+    ids = [step.id for step in steps]
+    assert ids[0] == "inspect"
+    assert "write_complete" not in ids
+
+
+def test_mark_python_write_completes_create_plan():
+    steps = pick_execution_plan(user_task="скрипт сортировки", coding_language="python")
+    after_write = mark_step_completed(
+        steps, set(), tool="write_file", path="main.py", success=True
+    )
+    assert "write_complete" in after_write
     steps = web_developer_plan(design_folder="design-system")
     ids = [step.id for step in steps]
     assert "read_design" in ids
     assert "html_structure" in ids
     assert "css_layout" in ids
+
+
+def test_python_create_plan_does_not_block_done_like_gui():
+    from core.step_execution import should_block_done_for_plan
+
+    steps = pick_execution_plan(user_task="скрипт сортировки", coding_language="python")
+    assert should_block_done_for_plan(steps, set(), is_web=False) is False
+    web = web_developer_plan()
+    assert should_block_done_for_plan(web, set(), is_web=True) is True
+    assert should_block_done_for_plan(web, set(), is_web=False) is False
 
 
 def test_format_plan_for_prompt_lists_steps():
@@ -84,3 +133,7 @@ def test_pick_execution_plan_for_developer_with_design_folder():
         has_design_folder=True,
     )
     assert any("my-design" in step.instruction for step in steps)
+
+
+def test_idle_no_code_turns_is_short():
+    assert IDLE_NO_CODE_TURNS == 8

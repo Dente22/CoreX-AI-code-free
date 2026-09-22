@@ -80,6 +80,10 @@ def test_catalog_install_status_marks_installed_models():
 @pytest.mark.asyncio
 async def test_get_models_snapshot_uses_tags_api(monkeypatch):
     monkeypatch.setattr(
+        "core.ollama_lifecycle.attach_if_already_running",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
         "core.ollama_model_service._is_server_running",
         AsyncMock(return_value=True),
     )

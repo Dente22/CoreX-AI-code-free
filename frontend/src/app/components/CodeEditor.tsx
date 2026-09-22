@@ -21,6 +21,7 @@ interface CodeEditorProps {
   onRun?: () => void;
   canRun?: boolean;
   patchHighlights?: FilePatchHighlight[];
+  revealRequest?: { path: string; line: number; token: number } | null;
 }
 
 const getApiHosts = () => {
@@ -37,6 +38,7 @@ const getApiHosts = () => {
 
 export type CodeEditorHandle = {
   save: () => Promise<boolean>;
+  revealLine: (line: number) => void;
 };
 
 export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor({
@@ -50,6 +52,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
   onRun,
   canRun = false,
   patchHighlights = [],
+  revealRequest = null,
 }, ref) {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
@@ -240,6 +243,16 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
 
   useImperativeHandle(ref, () => ({
     save: () => saveFileRef.current(),
+    revealLine: (line: number) => {
+      const editor = editorRef.current;
+      if (!editor || !Number.isFinite(line)) {
+        return;
+      }
+      const target = Math.max(1, Math.floor(line));
+      editor.revealLineInCenter?.(target);
+      editor.setPosition?.({ lineNumber: target, column: 1 });
+      editor.focus?.();
+    },
   }), []);
 
   const handleEditorMount = (editor: any, monaco: any) => {
@@ -259,7 +272,26 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
     }
 
     editor.focus();
+    if (revealRequest && revealRequest.path === safePath) {
+      const target = Math.max(1, Math.floor(revealRequest.line));
+      editor.revealLineInCenter?.(target);
+      editor.setPosition?.({ lineNumber: target, column: 1 });
+    }
   };
+
+  useEffect(() => {
+    if (!revealRequest || revealRequest.path !== safePath) {
+      return;
+    }
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+    const target = Math.max(1, Math.floor(revealRequest.line));
+    editor.revealLineInCenter?.(target);
+    editor.setPosition?.({ lineNumber: target, column: 1 });
+    editor.focus?.();
+  }, [revealRequest, safePath, editorModule, safeContent]);
 
   const handleEditorChange = (value?: string) => {
     if (typeof value !== 'string') {

@@ -27,4 +27,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('update-status', listener);
   },
   openFolder: () => ipcRenderer.invoke('open-folder'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  copyText: (text) => ipcRenderer.invoke('copy-text', text),
+  onOpenInAppBrowser: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, url) => callback(url);
+    ipcRenderer.on('open-in-app-browser', listener);
+    return () => ipcRenderer.removeListener('open-in-app-browser', listener);
+  },
+  onAuthOpenedExternally: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, url) => callback(url);
+    ipcRenderer.on('auth-opened-externally', listener);
+    return () => ipcRenderer.removeListener('auth-opened-externally', listener);
+  },
 });

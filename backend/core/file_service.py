@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Optional
 
 from core.file_patch import apply_file_patch, number_file_content
-from core.project_paths import collect_mentionable_files
+from core.project_paths import collect_mentionable_files, is_corex_internal_path
+from core.file_search import search_project_files
 
 EXCLUDED_DIR_NAMES = {
     ".git",
@@ -26,8 +27,10 @@ class FileService:
         self.project_root = Path(project_root).resolve()
         self.use_mcp = use_mcp
 
-    def _should_exclude(self, name: str) -> bool:
-        return name in EXCLUDED_DIR_NAMES or name.startswith(".")
+    def _should_exclude(self, name: str, rel_path: str = "") -> bool:
+        if name in EXCLUDED_DIR_NAMES or name.startswith("."):
+            return True
+        return is_corex_internal_path(rel_path)
 
     async def list_directory(self, path: str = ".") -> dict:
         """Список файлов в активном project_root (всегда локально — для UI и дерева)."""
@@ -82,6 +85,29 @@ class FileService:
         """Записать содержимое в файл. Always returns {success: True} or {error: ...}."""
         try:
             normalized = path.replace("\\", "/").lstrip("/")
+            from core.project_paths import is_corex_internal_path
+            from core.file_outline import prepare_source_write
+
+            from core.write_target import NO_EXTENSION_ERROR, filename_has_extension
+
+            refused = self._directory_write_error(normalized)
+            if refused:
+                return refused
+            if not filename_has_extension(normalized):
+                return {"error": NO_EXTENSION_ERROR}
+
+            if not is_corex_internal_path(normalized):
+                existing = ""
+                disk = self._resolve_path(normalized)
+                if disk.is_file() and normalized.lower().endswith(".py"):
+                    try:
+                        existing = disk.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        existing = ""
+                gated = prepare_source_write(normalized, content, existing=existing)
+                if gated.get("error"):
+                    return {"error": gated["error"]}
+                content = str(gated.get("content") if gated.get("content") is not None else content)
             local_result = await self._write_file_local(normalized, content)
             if isinstance(local_result, dict) and local_result.get("error"):
                 return local_result
@@ -102,6 +128,34 @@ class FileService:
             }
         except Exception as e:
             return {"error": str(e)}
+
+    async def append_file(self, path: str, content: str) -> dict:
+        """Дописать кусок в конец файла. Служебный текст и повторные import отбрасываются."""
+        from core.staged_write import is_protocol_leak, merge_append, sanitize_code_chunk
+
+        normalized = (path or "").replace("\\", "/").lstrip("/")
+        chunk = sanitize_code_chunk(content or "")
+        if is_protocol_leak(chunk) or not chunk.strip():
+            return {
+                "error": (
+                    "Кусок не похож на код (служебный текст или пусто). "
+                    "Пришлите только исходник — без инструкций."
+                )
+            }
+        existing = await self._read_file_local(normalized)
+        old = ""
+        if isinstance(existing, dict) and "error" not in existing:
+            old = str(existing.get("content") or "")
+        merged = merge_append(old, chunk)
+        if merged == old:
+            full_path = self._resolve_path(normalized)
+            return {
+                "success": True,
+                "path": normalized,
+                "absolute_path": str(full_path),
+                "unchanged": True,
+            }
+        return await self.write_file(normalized, merged)
 
     async def get_file_tree(self, path: str = ".", max_depth: int = 3) -> dict:
         """Получить дерево файлов для фронтенда."""
@@ -150,20 +204,26 @@ class FileService:
     async def _list_directory_local(self, path: str) -> dict:
         """Локальное чтение директории (без MCP)."""
         try:
+            normalized = (path or ".").replace("\\", "/").strip().lstrip("/")
+            if is_corex_internal_path(normalized):
+                return {"contents": []}
             full_path = self._resolve_path(path)
             if not full_path.is_dir():
                 return {"error": f"Path is not a directory: {path}"}
             
             contents = []
             for item in sorted(full_path.iterdir()):
-                if self._should_exclude(item.name):
+                item_rel = (
+                    str(item.relative_to(self.project_root)).replace("\\", "/")
+                    if item != self.project_root
+                    else "."
+                )
+                if self._should_exclude(item.name, item_rel):
                     continue
                 contents.append({
                     "name": item.name,
                     "type": "directory" if item.is_dir() else "file",
-                    "path": str(item.relative_to(self.project_root)).replace("\\", "/")
-                    if item != self.project_root
-                    else ".",
+                    "path": item_rel,
                 })
             
             return {"contents": contents}
@@ -174,6 +234,13 @@ class FileService:
         """Локальное чтение файла (без MCP)."""
         try:
             full_path = self._resolve_path(path)
+            if full_path.is_dir():
+                return {
+                    "error": (
+                        f"Path is a directory, not a file: {path}. "
+                        "Use list_directory for folders."
+                    )
+                }
             if not full_path.is_file():
                 return {"error": f"Path is not a file: {path}"}
             
@@ -184,11 +251,72 @@ class FileService:
         except Exception as e:
             return {"error": str(e)}
 
+    def _directory_write_error(self, path: str) -> Optional[dict]:
+        cleaned = (path or "").replace("\\", "/").strip()
+        if not cleaned or cleaned in (".", "./"):
+            return {
+                "error": (
+                    "Path is a directory, not a file. "
+                    "Specify a file name such as main.py."
+                )
+            }
+        target = self._resolve_path(cleaned)
+        if target.is_dir():
+            return {
+                "error": (
+                    f"Path is a directory, not a file: {path}. "
+                    "Specify a file inside the project."
+                )
+            }
+        return None
+
+    def _ensure_parent_dirs(self, full_path: Path) -> Optional[dict]:
+        """Создать родительские папки. Файл без расширения на месте папки — убрать."""
+        from core.write_target import filename_has_extension
+
+        root = self.project_root.resolve()
+        cursor = full_path.parent
+        chain: list[Path] = []
+        while True:
+            try:
+                resolved = cursor.resolve()
+                resolved.relative_to(root)
+            except ValueError:
+                break
+            if resolved == root:
+                break
+            chain.append(cursor)
+            cursor = cursor.parent
+        for folder in reversed(chain):
+            if folder.is_file():
+                rel = str(folder.relative_to(root)).replace("\\", "/")
+                if filename_has_extension(rel):
+                    return {"error": f"Нельзя создать папку: {rel} уже файл с расширением."}
+                try:
+                    folder.unlink()
+                except OSError as exc:
+                    return {"error": f"Не удалось убрать файл без расширения {rel}: {exc}"}
+            if not folder.exists():
+                try:
+                    folder.mkdir(parents=True, exist_ok=True)
+                except OSError as exc:
+                    return {"error": str(exc)}
+        return None
+
     async def _write_file_local(self, path: str, content: str) -> dict:
         """Локальная запись файла (без MCP)."""
+        refused = self._directory_write_error(path)
+        if refused:
+            return refused
+        from core.write_target import NO_EXTENSION_ERROR, filename_has_extension
+
+        if not filename_has_extension(path):
+            return {"error": NO_EXTENSION_ERROR}
         try:
             full_path = self._resolve_path(path)
-            full_path.parent.mkdir(parents=True, exist_ok=True)
+            blocked = self._ensure_parent_dirs(full_path)
+            if blocked:
+                return blocked
             
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
@@ -200,10 +328,30 @@ class FileService:
     async def list_mention_candidates(self, query: str = "", limit: int = 30) -> list[str]:
         return collect_mentionable_files(self.project_root, query, limit=limit)
 
+    async def search_contents(self, query: str, limit: int = 80) -> dict:
+        try:
+            return await asyncio.to_thread(
+                search_project_files,
+                self.project_root,
+                query,
+                limit=limit,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
     async def create_directory(self, path: str) -> dict:
         """Создать директорию внутри project_root."""
         try:
             target = self._resolve_path(path)
+            from core.write_target import filename_has_extension
+
+            if target.is_file() and not filename_has_extension(path):
+                target.unlink()
+            blocked = self._ensure_parent_dirs(target)
+            if blocked:
+                return blocked
+            if target.is_file():
+                return {"error": f"Нельзя создать папку: {path} уже файл."}
             target.mkdir(parents=True, exist_ok=True)
             return {"success": True}
         except Exception as e:

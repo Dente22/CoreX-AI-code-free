@@ -104,22 +104,24 @@ export function SelectionPickerModal({
             />
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {filters.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setActiveFilter(filter.id)}
-                className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                  activeFilter === filter.id
-                    ? 'bg-[#2563eb] border-[#2563eb] text-white'
-                    : 'bg-[#0f1720] border-[#212733] text-[#9ca3af] hover:text-white'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
+          {filters.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {filters.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setActiveFilter(filter.id)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    activeFilter === filter.id
+                      ? 'bg-[#2563eb] border-[#2563eb] text-white'
+                      : 'bg-[#0f1720] border-[#212733] text-[#9ca3af] hover:text-white'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">

@@ -94,3 +94,45 @@ async def test_ollama_client_prepare_for_generation_activates_model(monkeypatch)
     assert ok is True
     verify.assert_awaited_once_with("qwen2.5-coder:7b", client.root_url)
     activate.assert_awaited_once_with("qwen2.5-coder:7b", client.root_url, preload=False)
+
+
+@pytest.mark.asyncio
+async def test_verify_auto_imports_from_desktop_ollama(monkeypatch):
+    from core.ollama_model_session import verify_model_installed
+
+    monkeypatch.setattr(
+        "core.ollama_model_session._model_visible_in_tags",
+        AsyncMock(side_effect=[None, {"success": True, "installed": True, "source": "tags"}]),
+    )
+    monkeypatch.setattr(
+        "core.ollama_model_service.detect_installed_models_from_disk",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        "core.desktop_ollama_bridge.detect_desktop_models_from_disk",
+        lambda: [{"name": "qwen2.5-coder:3b"}],
+    )
+
+    def fake_import(name: str):
+        assert name == "qwen2.5-coder:3b"
+        return {"success": True, "imported": True}
+
+    monkeypatch.setattr("core.desktop_ollama_bridge.import_model_from_desktop", fake_import)
+
+    result = await verify_model_installed("qwen2.5-coder:3b", "http://127.0.0.1:11435")
+    assert result["installed"] is True
+    assert result.get("imported") is True
+
+
+def test_format_ollama_http_error_explains_llama_crash():
+    from core.ollama_client import format_ollama_http_error
+
+    message = format_ollama_http_error(
+        500,
+        '{"error":"llama-server process has terminated: exit status 0xe06d7363"}',
+    )
+    assert "Ollama returned status" not in message
+    assert "Настройк" in message
+    assert "3B" in message or "3b" in message.lower()
+    assert "NVIDIA" in message or "Intel" in message
+

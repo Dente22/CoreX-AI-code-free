@@ -104,6 +104,51 @@ function shouldOpenWindowBeforeBackend() {
   return true;
 }
 
+const CHROME_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function shouldOpenInSystemBrowser(input) {
+  return Boolean(input && (input.ctrlKey || input.metaKey));
+}
+
+function shouldOpenAuthInSystemBrowser(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'accounts.google.com' || host.endsWith('.accounts.google.com')) {
+      return true;
+    }
+    if (host === 'accounts.youtube.com' || host === 'oauth2.googleapis.com') {
+      return true;
+    }
+    return /^accounts\.google\.[a-z.]+$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
+function isOllamaLaunchSkippable(data) {
+  if (!data || data.ready === true) {
+    return false;
+  }
+  if (data.skippable === true) {
+    return true;
+  }
+  return data.phase === 'ollama_server';
+}
+
 const COREX_OLLAMA_PORT = 11435;
 const DESKTOP_OLLAMA_PORT = 11434;
 const SHUTDOWN_HTTP_TIMEOUT_MS = 2500;
@@ -338,6 +383,49 @@ function killCoreXRuntimeSync(options = {}) {
   return true;
 }
 
+/**
+ * Hybrid Intel+NVIDIA: keep the Chromium window on the iGPU.
+ * Pinning the UI to NVIDIA made both GPUs busy (dGPU renders, iGPU copies
+ * frames to the display) and stole T600 time from Ollama.
+ */
+function preferIntegratedGpuForUi(options = {}) {
+  const platform = options.platform || process.platform;
+  if (platform !== 'win32') {
+    return { applied: false };
+  }
+  const commandLine = options.commandLine;
+  if (commandLine && typeof commandLine.appendSwitch === 'function') {
+    commandLine.appendSwitch('force_low_power_gpu');
+  }
+  const spawnFn = options.spawn;
+  const execPath = options.execPath;
+  if (execPath && typeof spawnFn === 'function') {
+    try {
+      const child = spawnFn(
+        'reg',
+        [
+          'add',
+          'HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences',
+          '/v',
+          String(execPath),
+          '/t',
+          'REG_SZ',
+          '/d',
+          'GpuPreference=1;',
+          '/f',
+        ],
+        { windowsHide: true, stdio: 'ignore', detached: true },
+      );
+      if (child && typeof child.unref === 'function') {
+        child.unref();
+      }
+    } catch (_error) {
+      // Graphics preference is best-effort; the window still opens.
+    }
+  }
+  return { applied: true };
+}
+
 module.exports = {
   resolveProjectRoot,
   resolvePythonCommand,
@@ -345,6 +433,11 @@ module.exports = {
   shouldEnableAutoUpdates,
   resolveBackendHealthTimeoutMs,
   shouldOpenWindowBeforeBackend,
+  isOllamaLaunchSkippable,
+  CHROME_USER_AGENT,
+  isHttpUrl,
+  shouldOpenInSystemBrowser,
+  shouldOpenAuthInSystemBrowser,
   resolveEmbeddedPythonCandidates,
   COREX_OLLAMA_PORT,
   DESKTOP_OLLAMA_PORT,
@@ -361,4 +454,5 @@ module.exports = {
   listWindowsProcessesSync,
   killZombieLlamaServersSync,
   killResidualLlamaServersSync,
+  preferIntegratedGpuForUi,
 };

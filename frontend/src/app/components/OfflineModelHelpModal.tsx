@@ -18,6 +18,7 @@ interface OfflineModelHelpModalProps {
   providers: AiProviderPreset[];
   selectedId?: string;
   availableRamGb?: number;
+  availableVramGb?: number;
   onSelectModel?: (id: string) => void;
   onNotification?: (message: string) => void;
 }
@@ -28,6 +29,7 @@ export function OfflineModelHelpModal({
   providers,
   selectedId,
   availableRamGb,
+  availableVramGb,
   onSelectModel,
   onNotification,
 }: OfflineModelHelpModalProps) {
@@ -56,8 +58,11 @@ export function OfflineModelHelpModal({
   }, [providers, catalog]);
 
   const recommendation = useMemo(
-    () => recommendOfflineModel(providersWithCommands, { availableRamGb }),
-    [providersWithCommands, availableRamGb],
+    () => recommendOfflineModel(providersWithCommands, {
+      availableRamGb,
+      availableVramGb,
+    }),
+    [providersWithCommands, availableRamGb, availableVramGb],
   );
 
   const rows = useMemo(
@@ -174,8 +179,8 @@ export function OfflineModelHelpModal({
 
           {modelsDir ? (
             <p className="text-[10px] text-[#6b7280] leading-snug">
-              CoreX хранит модели в ollama_models (порт 11435). Если вы уже скачали модель через
-              ollama pull в системе — нажмите «Импортировать» (копирование без повторной загрузки).
+              Если открыто приложение Ollama, CoreX подключается к нему (порт 11434) и видит
+              уже скачанные модели. Свой сервер на 11435 поднимается только если приложение закрыто.
             </p>
           ) : null}
 

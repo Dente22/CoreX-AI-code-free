@@ -25,12 +25,14 @@ def test_resolve_models_storage_dir_under_corex(tmp_path, monkeypatch):
 
 
 def test_all_catalog_providers_have_direct_source():
-    for provider_id in ("ollama-lite", "ollama-qwen", "ollama-claude"):
-        assert has_direct_source(provider_id)
-        cmd = direct_download_curl_command(provider_id)
+    from core.ai_provider_catalog import list_presets
+
+    for preset in list_presets():
+        assert has_direct_source(preset.id)
+        cmd = direct_download_curl_command(preset.id)
         assert cmd.startswith("curl -L")
         assert "-sS" in cmd
-        assert DIRECT_MODEL_SOURCES[provider_id].url in cmd
+        assert DIRECT_MODEL_SOURCES[preset.id].url in cmd
 
 
 def test_build_curl_download_argv_uses_silent_flags(tmp_path):

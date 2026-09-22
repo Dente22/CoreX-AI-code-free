@@ -77,9 +77,9 @@ class AiProviderService:
             "selected_id": selected_id,
             "providers": providers,
             "install_hint": (
-                "CoreX использует свою папку ollama_models (порт 11435). "
-                "Если модель уже скачана через ollama pull в системе — "
-                "откройте помощник и нажмите «Импортировать» (или «Скачать» — импорт без повторной загрузки)."
+                "Если открыто приложение Ollama, CoreX подключается к нему (порт 11434). "
+                "Иначе поднимает свой сервер на 11435. "
+                "Модели из системной Ollama видны сразу — отдельный импорт не нужен."
             ),
         }
 
@@ -94,10 +94,11 @@ class AiProviderService:
 
     def apply_to_client(self, client: Any) -> AiProviderPreset:
         """Применить выбранный пресет к OllamaClient (или совместимому клиенту)."""
+        from core.ollama_lifecycle import bind_client_to_live_endpoint
+
         preset = self.get_selected_preset()
         client.model_name = preset.model_name
-        client.root_url = preset.base_url.rstrip("/")
-        client.chat_url = f"{client.root_url}/api/chat"
+        bind_client_to_live_endpoint(client)
         return preset
 
 

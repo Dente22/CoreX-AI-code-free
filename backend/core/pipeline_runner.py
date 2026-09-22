@@ -93,7 +93,7 @@ async def run_team_pipeline(
 
     steps = pipeline.get("steps") or []
     if not steps:
-        orchestrator._broadcast("chat", "CoreX Error", "Конвейер пуст — добавьте этапы в chat/pipelines/")
+        orchestrator._broadcast("chat", "CoreX Error", "Конвейер пуст — добавьте этапы в настройках команды.")
         return
 
     # In online mode we should NOT rely on device-based limits for stopping.
@@ -210,7 +210,12 @@ async def run_team_pipeline(
 
             prior = "\n".join(f"- {s}" for s in step_summaries)
             design_folder = get_design_folder_path(app_root)
-            web_task_step = is_web_site_task(user_task, goal)
+            coding_language = getattr(orchestrator, "_coding_language", "auto")
+            web_task_step = is_web_site_task(
+                user_task,
+                goal,
+                coding_language=coding_language,
+            )
             fix_context = bool(_FIX_TASK_PATTERNS.search(user_task)) or bool(
                 _FIX_TASK_PATTERNS.search(goal)
             )
@@ -225,6 +230,9 @@ async def run_team_pipeline(
                     f"Project: {active_root}\n"
                     f"{project_snapshot}"
                 )
+                web_block = getattr(orchestrator, "_web_search_block", "") or ""
+                if web_block:
+                    step_prompt += f"{web_block}\n"
                 if prior:
                     step_prompt += f"Previous: {prior}\n"
                 if _is_designer_actor(raw_actor):
@@ -233,11 +241,17 @@ async def run_team_pipeline(
                         "Один write_file за ход. Не done раньше времени.\n"
                     )
                 elif _is_developer_actor(raw_actor):
-                    step_prompt += (
-                        f"Сначала читай {design_folder}/ через view_file, потом HTML/CSS. "
-                        "Один tool за ход. Не done раньше времени.\n"
-                    )
-                    if not collect_design_bundle(active_root, app_root=app_root):
+                    if web_task_step:
+                        step_prompt += (
+                            f"Сначала читай {design_folder}/ через view_file, потом HTML/CSS. "
+                            "Один tool за ход. Не done раньше времени.\n"
+                        )
+                    else:
+                        step_prompt += (
+                            "Пиши код по выбранному языку. list_directory / write_file. "
+                            "Не читай design-system/, если задача не про сайт.\n"
+                        )
+                    if web_task_step and not collect_design_bundle(active_root, app_root=app_root):
                         ensure_design_scaffold(
                             active_root,
                             user_task=user_task,
@@ -245,7 +259,7 @@ async def run_team_pipeline(
                         )
                 elif "qa" in (raw_actor or "").replace("agent:", "").lower():
                     step_prompt += "Проверь index.html/style.css vs design. patch при необходимости.\n"
-                step_prompt += 'Finish: {"status":"done","message":"краткий отчёт на русском"}\n'
+                step_prompt += 'Finish: {"status":"done","message":"what changed — 1-2 sentences, no template phrases"}\n'
             else:
                 step_prompt = (
                     f"{plan_text}"
@@ -256,10 +270,13 @@ async def run_team_pipeline(
                     f"Active project root: {active_root}\n"
                     f"{project_snapshot}"
                 )
+                web_block = getattr(orchestrator, "_web_search_block", "") or ""
+                if web_block:
+                    step_prompt += f"{web_block}\n"
                 if prior:
                     step_prompt += f"Previous steps summary:\n{prior}\n"
 
-                if (web_task_step or design_folder) and _is_developer_actor(raw_actor):
+                if web_task_step and _is_developer_actor(raw_actor):
                     bundle = collect_design_bundle(active_root, app_root=app_root)
                     if not bundle:
                         ensure_design_scaffold(
@@ -296,7 +313,11 @@ async def run_team_pipeline(
                             "MANDATORY: run run_file on main.py (or project entry) BEFORE done. "
                             "If run fails — fix with write_file and run again. No done without a successful run.\n"
                         )
-                json_hint = pipeline_step_json_hint(raw_actor, user_task=user_task)
+                json_hint = pipeline_step_json_hint(
+                    raw_actor,
+                    user_task=user_task,
+                    coding_language=coding_language,
+                )
                 if json_hint:
                     step_prompt += f"\n=== REQUIRED JSON FORMAT ===\n{json_hint}\n"
                 if _is_designer_actor(raw_actor):
@@ -318,12 +339,12 @@ async def run_team_pipeline(
                     elif "qa" in (raw_actor or "").replace("agent:", "").lower():
                         step_prompt += qa_web_polish_prompt_ru()
                 step_prompt += f"Resource budget: {budget.status_line()}\n"
-                step_prompt += 'Finish this step: {"status": "done", "message": "краткий отчёт на русском"}\n'
+                step_prompt += 'Finish this step: {"status":"done","message":"what changed — 1-2 sentences, no template phrases"}\n'
 
             step_prompt = orchestrator._inject_project_memory(
                 step_prompt,
                 active_root,
-                max_chars=1200 if online_mode else None,
+                max_chars=800 if (local_profile and local_profile.model_tier == "low") else (1200 if online_mode else None),
             )
             orchestrator.system_prompt = orchestrator._build_system_prompt(
                 active_root,

@@ -38,6 +38,24 @@ import {
   type PipelineStepInput,
   type WorkMode,
 } from '../utils/pipelines';
+import {
+  CODING_LANGUAGES,
+  fetchCodingLanguage,
+  getSavedCodingLanguage,
+  saveCodingLanguage,
+  saveCodingLanguageLocal,
+  type CodingLanguageId,
+  type CodingLanguageOption,
+} from '../utils/codingLanguage';
+import {
+  CODING_ENGINES,
+  fetchCodingEngine,
+  getSavedCodingEngine,
+  persistCodingEngine,
+  saveCodingEngineLocal,
+  type CodingEngineId,
+  type CodingEngineOption,
+} from '../utils/codingEngine';
 import { syncProjectRoot } from '../utils/projectRoot';
 import {
   archiveChatSession,
@@ -51,6 +69,7 @@ import type { EditorPatchEvent } from '../types/editorPatch';
 import type { TraceErrorRecord, TraceEvent } from '../types/trace';
 import { fetchTraceErrors } from '../utils/traceApi';
 import type { ChatMessage } from '../types/chatMessage';
+import { isCorexInternalPath } from '../utils/corexInternal';
 
 export type { ChatMessage };
 
@@ -83,6 +102,12 @@ interface ChatContextValue {
   pipelines: Pipeline[];
   selectedPipelineId: string;
   setSelectedPipelineId: (id: string) => void;
+  codingLanguage: CodingLanguageId;
+  codingLanguages: CodingLanguageOption[];
+  setCodingLanguage: (id: CodingLanguageId) => void;
+  codingEngine: CodingEngineId;
+  codingEngines: CodingEngineOption[];
+  setCodingEngine: (id: CodingEngineId) => void;
   sendMessage: (text: string, overrides?: { projectRoot?: string }) => Promise<boolean>;
   stopGeneration: () => void;
   refreshConnection: () => void;
@@ -151,6 +176,10 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
   const [selectedAgentId, setSelectedAgentIdState] = useState('');
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineIdState] = useState('');
+  const [codingLanguage, setCodingLanguageState] = useState<CodingLanguageId>('auto');
+  const [codingLanguages, setCodingLanguages] = useState<CodingLanguageOption[]>(CODING_LANGUAGES);
+  const [codingEngine, setCodingEngineState] = useState<CodingEngineId>(getSavedCodingEngine());
+  const [codingEngines, setCodingEngines] = useState<CodingEngineOption[]>(CODING_ENGINES);
   const [editorPatch, setEditorPatch] = useState<EditorPatchEvent | null>(null);
   const [traceEvents, setTraceEvents] = useState<TraceEvent[]>([]);
   const [traceTaskId, setTraceTaskId] = useState<string | null>(null);
@@ -170,10 +199,14 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
   const selectedAgentRef = useRef(selectedAgentId);
   const workModeRef = useRef(workMode);
   const pipelineIdRef = useRef(selectedPipelineId);
+  const codingLanguageRef = useRef(codingLanguage);
+  const codingEngineRef = useRef(codingEngine);
   selectedPersonaRef.current = selectedPersonaId;
   selectedAgentRef.current = selectedAgentId;
   workModeRef.current = workMode;
   pipelineIdRef.current = selectedPipelineId;
+  codingLanguageRef.current = codingLanguage;
+  codingEngineRef.current = codingEngine;
 
   const setWorkMode = useCallback(
     (mode: WorkMode) => {
@@ -210,6 +243,25 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
     },
     [projectRoot],
   );
+
+  const setCodingLanguage = useCallback(
+    (language: CodingLanguageId) => {
+      codingLanguageRef.current = language;
+      setCodingLanguageState(language);
+      if (projectRoot) {
+        saveCodingLanguageLocal(projectRoot, language);
+        void saveCodingLanguage(language);
+      }
+    },
+    [projectRoot],
+  );
+
+  const setCodingEngine = useCallback((engine: CodingEngineId) => {
+    codingEngineRef.current = engine;
+    setCodingEngineState(engine);
+    saveCodingEngineLocal(engine);
+    void persistCodingEngine(engine);
+  }, []);
 
   const refreshPersonas = useCallback(async () => {
     try {
@@ -450,20 +502,40 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
       setSelectedAgentIdState('');
       setSelectedPipelineIdState('');
       setWorkModeState('single');
+      setCodingLanguageState('auto');
       return;
     }
 
     setWorkModeState(getSavedWorkMode(projectRoot));
+    setCodingLanguageState(getSavedCodingLanguage(projectRoot));
+    setCodingEngineState(getSavedCodingEngine());
 
     void (async () => {
       await refreshSkillsLibrary();
-      const [loadedPersonas, loadedAgents, loadedPipelines] = await Promise.all([
-        refreshPersonas(),
-        fetchAgents(),
-        fetchPipelines(),
-      ]);
+      const [loadedPersonas, loadedAgents, loadedPipelines, languageSnapshot, engineSnapshot] =
+        await Promise.all([
+          refreshPersonas(),
+          fetchAgents(),
+          fetchPipelines(),
+          fetchCodingLanguage(),
+          fetchCodingEngine(),
+        ]);
       setAgents(loadedAgents);
       setPipelines(loadedPipelines);
+      if (languageSnapshot.languages?.length) {
+        setCodingLanguages(languageSnapshot.languages);
+      }
+      if (languageSnapshot.language) {
+        setCodingLanguageState(languageSnapshot.language);
+        saveCodingLanguageLocal(projectRoot, languageSnapshot.language);
+      }
+      if (engineSnapshot.engines?.length) {
+        setCodingEngines(engineSnapshot.engines);
+      }
+      if (engineSnapshot.engine) {
+        setCodingEngineState(engineSnapshot.engine);
+        saveCodingEngineLocal(engineSnapshot.engine);
+      }
 
       const savedPersona = getSavedPersonaId(projectRoot);
       if (savedPersona && loadedPersonas.some((p) => p.id === savedPersona)) {
@@ -595,6 +667,7 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
             target?: string;
             sender?: string;
             text?: string;
+            model?: string;
             action?: string;
             path?: string;
             content?: string;
@@ -620,7 +693,7 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
 
           if (target === 'editor' && data?.action === 'file_patch') {
             const patchPath = String(data.path ?? '');
-            if (patchPath) {
+            if (patchPath && !isCorexInternalPath(patchPath)) {
               setEditorPatch({
                 path: patchPath,
                 content: String(data.content ?? ''),
@@ -671,6 +744,7 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
                 role: 'assistant',
                 content,
                 timestamp: 'только что',
+                ...(typeof data.model === 'string' && data.model.trim() ? { model: data.model.trim() } : {}),
               },
             ]);
           }
@@ -857,6 +931,8 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
       } else if (selectedPersonaRef.current) {
         payload.persona_id = selectedPersonaRef.current;
       }
+      payload.coding_language = codingLanguageRef.current;
+      payload.coding_engine = codingEngineRef.current;
 
       socketRef.current.send(JSON.stringify(payload));
       setThoughts((prev) => (prev.length ? [...prev, 'Ожидание ответа CoreX…'] : ['Ожидание ответа CoreX…']));
@@ -913,6 +989,12 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
       pipelines,
       selectedPipelineId,
       setSelectedPipelineId,
+      codingLanguage,
+      codingLanguages,
+      setCodingLanguage,
+      codingEngine,
+      codingEngines,
+      setCodingEngine,
       sendMessage,
       stopGeneration,
       refreshConnection,
@@ -956,6 +1038,12 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
       pipelines,
       selectedPipelineId,
       setSelectedPipelineId,
+      codingLanguage,
+      codingLanguages,
+      setCodingLanguage,
+      codingEngine,
+      codingEngines,
+      setCodingEngine,
       sendMessage,
       stopGeneration,
       refreshConnection,

@@ -44,14 +44,32 @@ def format_ollama_connection_error(exc: Exception, *, model_name: str) -> str:
         )
     if "cannot connect to host" in lowered or "connect call failed" in lowered:
         return (
-            "Ollama не запущена на 127.0.0.1:11435. "
-            "CoreX попробует перезапустить её — отправьте сообщение ещё раз."
+            "Ollama не запущена. "
+            "Откройте приложение Ollama или отправьте сообщение ещё раз — CoreX подключится."
         )
     return raw
 
 
+def format_ollama_http_error(status: int, body: str) -> str:
+    text = body or ""
+    lowered = text.lower()
+    if (
+        "llama-server process has terminated" in lowered
+        or "0xe06d7363" in lowered
+        or "exit status" in lowered
+    ):
+        return (
+            "Ollama упала при загрузке модели. "
+            "На ПК с Intel UHD + NVIDIA модель часто уходит на Intel и падает. "
+            "Закройте лишние программы и приложение Ollama в трее, "
+            "в Настройках оставьте Qwen 3B и отправьте сообщение снова — "
+            "CoreX запустит Ollama на NVIDIA."
+        )
+    return f"Ollama returned status {status}: {text[:200]}"
+
+
 class OllamaClient:
-    def __init__(self, model_name: str = "qwen2.5-coder:7b", base_url: str | None = None):
+    def __init__(self, model_name: str = "qwen2.5-coder:3b", base_url: str | None = None):
         self.model_name = model_name
         self.root_url = (base_url or resolve_ollama_base_url()).rstrip("/")
         self.chat_url = f"{self.root_url}/api/chat"
@@ -64,14 +82,12 @@ class OllamaClient:
 
     def _runtime_options(self, *, temperature: float, num_predict: int | None = None) -> dict[str, int | float]:
         profile = detect_device_profile()
-        num_ctx = profile.ollama_num_ctx()
-        if profile.ram_available_gb < 5 and profile.tier != "low":
-            num_ctx = min(num_ctx, 4096)
-        default_predict = 768 if profile.tier == "low" else 2048
+        num_ctx = min(profile.ollama_num_ctx(), 4096)
+        default_predict = 512 if profile.tier == "low" else 1024
         return {
             "temperature": temperature,
             "num_ctx": num_ctx,
-            "num_batch": 128 if profile.tier == "low" else 256,
+            "num_batch": 64 if profile.tier == "low" else 128,
             "num_predict": num_predict if num_predict is not None else default_predict,
         }
 
@@ -99,11 +115,11 @@ class OllamaClient:
         user = messages[-1] if messages else None
         history = messages[1:-1] if system is not None else messages[:-1]
 
-        keep_history = 2 if aggressive else 4
+        keep_history = 2 if aggressive else 3
         history_tail = history[-keep_history:] if history else []
-        max_system = 1600 if aggressive else 2600
-        max_user = 2400 if aggressive else 3800
-        max_history = 900 if aggressive else 1400
+        max_system = 1200 if aggressive else 1800
+        max_user = 1600 if aggressive else 2400
+        max_history = 600 if aggressive else 900
 
         compact: list[dict] = []
         if system is not None:
@@ -135,8 +151,14 @@ class OllamaClient:
     async def ensure_ready(self) -> bool:
         async with self._daemon_lock:
             if await ensure_ollama_serve_running():
+                live = resolve_ollama_base_url().rstrip("/")
+                self.root_url = live
+                self.chat_url = f"{live}/api/chat"
                 if not self._daemon_checked:
-                    self._log("Ollama server is running")
+                    from core.ollama_lifecycle import is_using_desktop_ollama
+
+                    where = "системная Ollama :11434" if is_using_desktop_ollama() else "CoreX :11435"
+                    self._log(f"Ollama server is running ({where})")
                     self._daemon_checked = True
                 return True
             self.last_error = get_ollama_start_error()
@@ -155,11 +177,17 @@ class OllamaClient:
             verify = await verify_model_installed(self.model_name, self.root_url)
             if not verify.get("installed"):
                 self.last_error = str(verify.get("error") or f"Модель «{self.model_name}» недоступна.")
-                if attempt == 0 and "11435" in self.last_error.lower():
+                if attempt == 0 and (
+                    "11435" in self.last_error.lower()
+                    or "перезапустите" in self.last_error.lower()
+                ):
                     await self._recover_from_disconnect()
                     continue
                 self._log(self.last_error)
                 return False
+
+            if verify.get("imported"):
+                self._log(f"Импортирована из системной Ollama: {self.model_name}")
 
             switch = await activate_ollama_model(self.model_name, self.root_url, preload=False)
             if not switch.get("success"):
@@ -188,17 +216,25 @@ class OllamaClient:
                 if role in ("user", "assistant") and content:
                     messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": user_prompt})
-        return messages
+        return self._compact_messages(messages, aggressive=False)
 
     async def _recover_from_disconnect(self) -> None:
         self._log("Восстанавливаю соединение с Ollama...")
         clear_active_ollama_model()
         self._daemon_checked = False
-        from core.ollama_lifecycle import cleanup_zombie_llama_workers, stop_ollama_serve
+        from core.ollama_lifecycle import (
+            cleanup_zombie_llama_workers,
+            is_using_desktop_ollama,
+            stop_ollama_serve,
+        )
 
-        await stop_ollama_serve(reason="manual")
-        await cleanup_zombie_llama_workers()
+        if not is_using_desktop_ollama():
+            await stop_ollama_serve(reason="manual")
+            await cleanup_zombie_llama_workers()
         await ensure_ollama_serve_running()
+        live = resolve_ollama_base_url().rstrip("/")
+        self.root_url = live
+        self.chat_url = f"{live}/api/chat"
         await asyncio.sleep(_STREAM_RETRY_DELAY_SEC)
 
     async def generate_stream(
@@ -270,7 +306,13 @@ class OllamaClient:
                                         aggressive=attempt > 0,
                                     )
                                     continue
-                                self.last_error = f"Ollama returned status {response.status}: {body[:200]}"
+                                if attempt == 0 and (
+                                    "llama-server process has terminated" in body.lower()
+                                    or "0xe06d7363" in body.lower()
+                                ):
+                                    await self._recover_from_disconnect()
+                                    continue
+                                self.last_error = format_ollama_http_error(response.status, body)
                                 return f"[CoreX Critical Error]: {self.last_error}"
                             data = await response.json()
                             note_ollama_activity()
@@ -307,7 +349,13 @@ class OllamaClient:
                                     aggressive=attempt > 0,
                                 )
                                 continue
-                            self.last_error = f"Ollama returned status {response.status}: {body[:200]}"
+                            if attempt == 0 and (
+                                "llama-server process has terminated" in body.lower()
+                                or "0xe06d7363" in body.lower()
+                            ):
+                                await self._recover_from_disconnect()
+                                continue
+                            self.last_error = format_ollama_http_error(response.status, body)
                             yield f"\n[CoreX Critical Error]: {self.last_error}"
                             return
 

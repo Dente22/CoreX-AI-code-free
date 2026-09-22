@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "selected_id": "",
+  "providers": [
+    {
+      "id": "example-openrouter-free",
+      "name": "OpenRouter Free",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "YOUR_API_KEY_HERE",
+      "model_name": "openrouter/free",
+      "api_type": "openai"
+    }
+  ]
+}

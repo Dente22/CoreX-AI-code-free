@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from core.terminal_service import _build_file_command
+from core.terminal_service import _build_file_command, rewrite_shell_command_for_project_python
 
 
 def _dummy_python_exe() -> str:
@@ -60,4 +60,24 @@ def test_build_ts_returns_help_when_ts_runner_missing(tmp_path: Path):
     assert isinstance(built, dict)
     assert "tsx" in built.get("error", "").lower()
     assert "ts-node" in built.get("error", "").lower()
+
+
+def test_rewrite_pip_install_uses_run_python():
+    py = r"D:\Project\COREX\.venv\Scripts\python.exe"
+    rewritten = rewrite_shell_command_for_project_python("pip install pygame", py)
+    assert rewritten.startswith(py) or rewritten.startswith(f'"{py}"')
+    assert "-m pip install pygame" in rewritten
+    assert rewritten.strip().startswith("pip") is False
+
+
+def test_rewrite_python_dash_m_pip():
+    py = r"C:\CoreX\python.exe"
+    rewritten = rewrite_shell_command_for_project_python("python -m pip install pygame", py)
+    assert "-m pip install pygame" in rewritten
+    assert py in rewritten
+
+
+def test_rewrite_leaves_git_alone():
+    py = r"C:\CoreX\python.exe"
+    assert rewrite_shell_command_for_project_python("git status", py) == "git status"
 

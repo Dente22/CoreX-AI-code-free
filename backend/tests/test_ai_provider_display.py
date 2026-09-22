@@ -10,6 +10,8 @@ class TestAiProviderCatalogDisplay:
     def test_all_presets_have_short_friendly_names(self):
         names = {preset.id: preset.name for preset in list_presets()}
         assert "Qwen" in names["ollama-qwen"]
+        assert "Qwen" in names["ollama-qwen-7b"]
+        assert "Qwen" in names["ollama-qwen-14b"]
         assert "Llama" in names["ollama-claude"] or "Claude" in names["ollama-claude"]
         assert "Phi" in names["ollama-lite"]
 

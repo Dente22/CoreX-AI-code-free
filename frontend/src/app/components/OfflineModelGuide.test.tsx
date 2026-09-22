@@ -18,10 +18,10 @@ const MODELS: OfflineModelInput[] = [
     id: 'ollama-qwen',
     name: 'Ollama — Qwen Coder',
     description: 'Баланс',
-    model_name: 'qwen2.5-coder:7b',
-    min_ram_gb: 8,
-    tier: 'medium',
-    pull_command: 'ollama pull qwen2.5-coder:7b',
+    model_name: 'qwen2.5-coder:3b',
+    min_ram_gb: 4,
+    tier: 'low',
+    pull_command: 'ollama pull qwen2.5-coder:3b',
     is_default: true,
   },
   {
@@ -67,7 +67,7 @@ describe('buildOllamaInstallGuide', () => {
 describe('buildModelInstallGuide', () => {
   it('contains direct download and corex selection steps', () => {
     const guide = buildModelInstallGuide(MODELS[0]);
-    expect(guide.pullCommand).toContain('qwen2.5-coder:7b');
+    expect(guide.pullCommand).toContain('qwen2.5-coder:3b');
     expect(guide.steps.some((s) => /hugging face|скачать/i.test(s))).toBe(true);
     expect(guide.steps.some((s) => /локально|corex/i.test(s))).toBe(true);
   });

@@ -1,12 +1,15 @@
 import { fetchApi } from './api';
 
-const MENTION_PATTERN = /(?:^|[\s(«"'])\/([^\s/,.)»"']+)/gu;
+const MENTION_PATTERN = /(?:^|[\s(«"'])\/([^\s/,;:)»"'`]+(?:\/[^\s/,;:)»"'`]+)*)/gu;
 
 export function extractMentionPaths(text: string): string[] {
   const seen = new Set<string>();
   const paths: string[] = [];
   for (const match of text.matchAll(MENTION_PATTERN)) {
-    const path = match[1]?.replace(/\\/g, '/');
+    const path = match[1]
+      ?.replace(/\\/g, '/')
+      .replace(/[`'"]/g, '')
+      .replace(/^\/+|\/+$/g, '');
     if (!path || seen.has(path)) continue;
     seen.add(path);
     paths.push(path);

@@ -1,9 +1,9 @@
 {
   "daily": {
-    "prompt_tokens": 179870,
-    "completion_tokens": 80254,
-    "total_tokens": 260124,
-    "requests": 36,
-    "date": "2026-07-27"
+    "prompt_tokens": 195342,
+    "completion_tokens": 103313,
+    "total_tokens": 298655,
+    "requests": 26,
+    "date": "2026-08-27"
   }
 }

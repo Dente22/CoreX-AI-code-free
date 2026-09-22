@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import AsyncGenerator, Literal
+from typing import AsyncGenerator, Iterator, Literal
 
 import aiohttp
 
@@ -97,6 +98,20 @@ class OnlineApiClient:
             self._apply_model_switch(current or "(empty)", candidate)
             return True
         return False
+
+    @contextmanager
+    def temporary_model(self, model_name: str | None) -> Iterator[str]:
+        target = str(model_name or "").strip()
+        current = str(self.model_name or "").strip()
+        if not target or target == current:
+            yield current
+            return
+        previous = self.model_name
+        self.model_name = target
+        try:
+            yield target
+        finally:
+            self.model_name = previous
 
     @staticmethod
     def _usage_from_openai_payload(payload: dict) -> LlmUsageStats | None:

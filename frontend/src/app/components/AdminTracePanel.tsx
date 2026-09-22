@@ -55,6 +55,13 @@ function nodeStatus(events: TraceEvent[], nodeId: TraceNodeId): TraceStatus {
   const nodeEvents = events.filter((e) => e.node === nodeId);
   if (nodeEvents.length === 0) return 'waiting';
   const last = nodeEvents[nodeEvents.length - 1];
+  const taskEnded = events.some(
+    (e) => e.kind === 'task_end' || e.kind === 'task_failed' || e.kind === 'task_cancelled',
+  );
+  if (taskEnded && last.status === 'active') {
+    const failed = events.some((e) => e.kind === 'task_failed' || e.status === 'error');
+    return failed ? 'error' : 'done';
+  }
   return last.status;
 }
 
@@ -108,7 +115,7 @@ function TraceDetailBody({ detail }: { detail: TraceEventDetail }) {
         </div>
       ))}
       {detail.truncated && (
-        <p className="text-[10px] text-amber-400/90 mt-1">Показана укороченная версия. Полная — в chat/trace/ на диске.</p>
+        <p className="text-[10px] text-amber-400/90 mt-1">Показана укороченная версия. Полный журнал хранится в системных данных проекта.</p>
       )}
     </div>
   );
@@ -158,6 +165,8 @@ function ChainNode({
   detailOverride,
   loadingDetail,
   nodeRef,
+  taskEnded = false,
+  taskFailed = false,
 }: {
   event: TraceEvent;
   isActive: boolean;
@@ -167,9 +176,13 @@ function ChainNode({
   detailOverride?: TraceEventDetail;
   loadingDetail: boolean;
   nodeRef?: (el: HTMLDivElement | null) => void;
+  taskEnded?: boolean;
+  taskFailed?: boolean;
 }) {
   const Icon = NODE_ICONS[event.node] ?? Activity;
-  const color = STATUS_COLORS[event.status];
+  const displayStatus =
+    taskEnded && event.status === 'active' ? (taskFailed ? 'error' : 'done') : event.status;
+  const color = STATUS_COLORS[displayStatus];
   const detail = detailOverride ?? event.detail;
   const hasDetail = Boolean(detail && (detail.body || detail.arguments || detail.result));
 
@@ -419,7 +432,7 @@ export function AdminTracePanel() {
               <CheckCircle2 className="w-10 h-10 text-emerald-400/60 mb-3" />
               <p className="text-sm text-[var(--corex-text)]">Ошибок пока нет</p>
               <p className="text-xs text-[var(--corex-text-muted)] mt-1">
-                Журнал сохраняется в chat/trace/errors.jsonl
+                Журнал сохраняется в системных данных проекта
               </p>
             </div>
           ) : (
@@ -455,21 +468,31 @@ export function AdminTracePanel() {
           </div>
         ) : (
           <div className="corex-trace-chain">
-            {taskEvents.map((event, index) => (
+            {taskEvents.map((event, index) => {
+              const taskEnded = taskEvents.some(
+                (e) => e.kind === 'task_end' || e.kind === 'task_failed' || e.kind === 'task_cancelled',
+              );
+              const taskFailed = taskEvents.some(
+                (e) => e.kind === 'task_failed' || e.status === 'error',
+              );
+              return (
               <ChainNode
                 key={event.id}
                 event={event}
-                isActive={index === taskEvents.length - 1 && event.status === 'active'}
+                isActive={index === taskEvents.length - 1 && event.status === 'active' && !taskEnded}
                 isHighlighted={highlightTraceEventId === event.id}
                 isExpanded={expandedIds.has(event.id)}
                 onToggle={() => void toggleExpand(event)}
                 detailOverride={detailCache[event.id]}
                 loadingDetail={loadingDetailId === event.id}
+                taskEnded={taskEnded}
+                taskFailed={taskFailed}
                 nodeRef={(el) => {
                   nodeRefs.current[event.id] = el;
                 }}
               />
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -41,47 +41,21 @@
 
       .aurora {
         position: absolute;
-        inset: -40%;
-        filter: blur(48px);
-        opacity: 0.55;
+        inset: -8%;
+        opacity: 0.4;
         pointer-events: none;
       }
 
       .aurora-a {
-        background: radial-gradient(circle at 30% 40%, rgba(154, 94, 255, 0.55), transparent 55%);
-        animation: driftA 9s ease-in-out infinite;
+        background: radial-gradient(circle at 30% 40%, rgba(154, 94, 255, 0.45), transparent 55%);
       }
 
       .aurora-b {
-        background: radial-gradient(circle at 70% 60%, rgba(0, 210, 255, 0.45), transparent 50%);
-        animation: driftB 11s ease-in-out infinite;
+        background: radial-gradient(circle at 70% 60%, rgba(0, 210, 255, 0.35), transparent 50%);
       }
 
       .aurora-c {
-        background: radial-gradient(circle at 50% 80%, rgba(236, 72, 153, 0.25), transparent 45%);
-        animation: driftC 13s ease-in-out infinite;
-      }
-
-      @keyframes driftA {
-        0%, 100% { transform: translate(0, 0) scale(1); }
-        50% { transform: translate(6%, -4%) scale(1.08); }
-      }
-
-      @keyframes driftB {
-        0%, 100% { transform: translate(0, 0) scale(1); }
-        50% { transform: translate(-5%, 6%) scale(1.12); }
-      }
-
-      @keyframes driftC {
-        0%, 100% { transform: translate(0, 0); opacity: 0.35; }
-        50% { transform: translate(3%, -3%); opacity: 0.6; }
-      }
-
-      canvas#fx {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
+        background: radial-gradient(circle at 50% 80%, rgba(236, 72, 153, 0.18), transparent 45%);
       }
 
       .scanlines {
@@ -95,8 +69,7 @@
           transparent 2px,
           transparent 4px
         );
-        opacity: 0.35;
-        mix-blend-mode: overlay;
+        opacity: 0.25;
       }
 
       .vignette {
@@ -113,19 +86,11 @@
         width: 220px;
         height: 220px;
         transform: translate(-50%, -50%);
-        perspective: 1000px;
       }
 
       .hex-grid {
         position: absolute;
         inset: 0;
-        transform-style: preserve-3d;
-        animation: hexSpin 14s linear infinite;
-      }
-
-      @keyframes hexSpin {
-        from { transform: rotateX(62deg) rotateZ(0deg); }
-        to { transform: rotateX(62deg) rotateZ(360deg); }
       }
 
       .hex {
@@ -141,15 +106,10 @@
         box-shadow: 0 0 20px rgba(0, 210, 255, 0.25);
       }
 
-      .hex:nth-child(1) { transform: translate(-58px, -34px) translateZ(30px); animation: hexPulse 2.2s ease-in-out infinite; }
-      .hex:nth-child(2) { transform: translate(58px, -34px) translateZ(10px); animation: hexPulse 2.2s ease-in-out 0.3s infinite; }
-      .hex:nth-child(3) { transform: translate(0, 62px) translateZ(50px); animation: hexPulse 2.2s ease-in-out 0.6s infinite; }
-      .hex:nth-child(4) { transform: translate(0, 0) translateZ(70px) scale(1.15); animation: hexPulse 1.8s ease-in-out infinite; }
-
-      @keyframes hexPulse {
-        0%, 100% { opacity: 0.65; filter: brightness(1); }
-        50% { opacity: 1; filter: brightness(1.35); }
-      }
+      .hex:nth-child(1) { transform: translate(-58px, -34px); opacity: 0.7; }
+      .hex:nth-child(2) { transform: translate(58px, -34px); opacity: 0.7; }
+      .hex:nth-child(3) { transform: translate(0, 62px); opacity: 0.7; }
+      .hex:nth-child(4) { transform: translate(0, 0) scale(1.15); opacity: 0.9; }
 
       .core-wrap {
         position: absolute;
@@ -158,13 +118,6 @@
         width: 72px;
         height: 72px;
         margin: -36px 0 0 -36px;
-        transform-style: preserve-3d;
-        animation: coreTilt 6s ease-in-out infinite;
-      }
-
-      @keyframes coreTilt {
-        0%, 100% { transform: rotateX(18deg) rotateY(-12deg); }
-        50% { transform: rotateX(24deg) rotateY(18deg); }
       }
 
       .core {
@@ -176,26 +129,12 @@
           0 0 35px rgba(0, 210, 255, 0.65),
           0 0 70px rgba(154, 94, 255, 0.45),
           inset 0 -8px 18px rgba(0, 0, 0, 0.35);
-        animation: coreBeat 1.6s ease-in-out infinite;
-      }
-
-      .core::after {
-        content: '';
-        position: absolute;
-        inset: -14px;
-        border-radius: 50%;
-        border: 2px solid rgba(0, 210, 255, 0.35);
-        animation: ripple 2.4s ease-out infinite;
+        animation: coreBeat 1.8s ease-in-out infinite;
       }
 
       @keyframes coreBeat {
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.08); }
-      }
-
-      @keyframes ripple {
-        0% { transform: scale(0.85); opacity: 0.8; }
-        100% { transform: scale(1.45); opacity: 0; }
       }
 
       .orbit-dot {
@@ -210,24 +149,9 @@
         box-shadow: 0 0 12px #00d2ff;
       }
 
-      .orbit-dot.a { animation: orbitA 3.2s linear infinite; }
-      .orbit-dot.b { animation: orbitB 4.1s linear infinite; background: #c49aff; box-shadow: 0 0 12px #9a5eff; }
-      .orbit-dot.c { animation: orbitC 5.3s linear infinite; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; }
-
-      @keyframes orbitA {
-        from { transform: rotate(0deg) translateX(88px) rotate(0deg); }
-        to { transform: rotate(360deg) translateX(88px) rotate(-360deg); }
-      }
-
-      @keyframes orbitB {
-        from { transform: rotate(120deg) translateX(72px) rotate(-120deg); }
-        to { transform: rotate(480deg) translateX(72px) rotate(-480deg); }
-      }
-
-      @keyframes orbitC {
-        from { transform: rotate(240deg) translateX(96px) rotate(-240deg); }
-        to { transform: rotate(600deg) translateX(96px) rotate(-600deg); }
-      }
+      .orbit-dot.a { transform: translateX(88px); }
+      .orbit-dot.b { transform: rotate(120deg) translateX(72px); background: #c49aff; box-shadow: 0 0 12px #9a5eff; }
+      .orbit-dot.c { transform: rotate(240deg) translateX(96px); width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; }
 
       .brand {
         position: absolute;
@@ -243,18 +167,10 @@
         font-weight: 800;
         letter-spacing: 0.18em;
         text-indent: 0.18em;
-        background: linear-gradient(120deg, #f5e6ff 0%, #00d2ff 45%, #9a5eff 80%, #f5e6ff 100%);
-        background-size: 220% auto;
+        background: linear-gradient(120deg, #f5e6ff 0%, #00d2ff 45%, #9a5eff 80%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
-        animation: titleFlow 4s linear infinite;
-        filter: drop-shadow(0 0 18px rgba(154, 94, 255, 0.35));
-      }
-
-      @keyframes titleFlow {
-        0% { background-position: 0% center; }
-        100% { background-position: 220% center; }
       }
 
       .brand p {
@@ -338,6 +254,72 @@
         background: linear-gradient(90deg, #22c55e, #00d2ff);
         box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
       }
+
+      .choice {
+        display: none;
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 22px;
+        z-index: 4;
+        padding: 14px 14px 12px;
+        border-radius: 14px;
+        background: rgba(8, 12, 22, 0.92);
+        border: 1px solid rgba(154, 94, 255, 0.35);
+        -webkit-app-region: no-drag;
+        pointer-events: auto;
+      }
+
+      .shell.choice-open .choice {
+        display: block;
+      }
+
+      .shell.choice-open .status,
+      .shell.choice-open .track {
+        visibility: hidden;
+      }
+
+      .choice p {
+        font-size: 12px;
+        line-height: 1.45;
+        color: #cbd5e1;
+        margin-bottom: 12px;
+      }
+
+      .choice-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .choice-actions button {
+        flex: 1;
+        height: 34px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid transparent;
+        -webkit-app-region: no-drag;
+      }
+
+      .choice-continue {
+        background: linear-gradient(180deg, #7c3aed, #6d28d9);
+        color: #f8fafc;
+      }
+
+      .choice-continue:hover {
+        filter: brightness(1.08);
+      }
+
+      .choice-close {
+        background: rgba(15, 23, 42, 0.9);
+        color: #e2e8f0;
+        border-color: rgba(148, 163, 184, 0.35);
+      }
+
+      .choice-close:hover {
+        background: rgba(30, 41, 59, 0.95);
+      }
     </style>
   </head>
   <body>
@@ -345,7 +327,6 @@
       <div class="aurora aurora-a"></div>
       <div class="aurora aurora-b"></div>
       <div class="aurora aurora-c"></div>
-      <canvas id="fx" aria-hidden="true"></canvas>
       <div class="scanlines"></div>
       <div class="vignette"></div>
 
@@ -370,6 +351,14 @@
         <div class="phase-tag" id="phase">boot</div>
       </div>
 
+      <div class="choice" id="choice" role="dialog" aria-labelledby="choice-text">
+        <p id="choice-text">Ollama не запущена. Можно открыть CoreX без локальной модели или закрыть приложение.</p>
+        <div class="choice-actions">
+          <button type="button" class="choice-continue" id="choice-continue">Продолжить без Ollama</button>
+          <button type="button" class="choice-close" id="choice-close">Закрыть</button>
+        </div>
+      </div>
+
       <div class="footer">
         <div class="status" id="status">Запуск…</div>
         <div class="track"><div class="fill" id="fill"></div></div>
@@ -390,9 +379,21 @@
         model: 'модель',
         model_pending: 'модель',
         online_config: 'online api',
+        ollama_skipped: 'без ollama',
         ui: 'интерфейс',
         ready: 'готово',
       };
+
+      const choiceTextEl = document.getElementById('choice-text');
+      let choiceOpen = false;
+
+      function setChoiceOpen(open, message) {
+        choiceOpen = Boolean(open);
+        shellEl.classList.toggle('choice-open', choiceOpen);
+        if (message && choiceTextEl) {
+          choiceTextEl.textContent = message;
+        }
+      }
 
       function setProgress(value, message, options = {}) {
         progress = Math.max(progress, Math.min(100, Number(value) || 0));
@@ -403,7 +404,31 @@
         }
         if (options.error) shellEl.classList.add('error');
         if (progress >= 100) shellEl.classList.add('done');
+        if (options.choice === 'ollama_missing') {
+          setChoiceOpen(true, message || choiceTextEl.textContent);
+        } else if (options.choice === null || options.phase === 'ui' || options.phase === 'ollama_skipped') {
+          setChoiceOpen(false);
+        }
       }
+
+      function sendChoice(action) {
+        if (!choiceOpen) return;
+        setChoiceOpen(false);
+        if (window.splashAPI?.choose) {
+          window.splashAPI.choose(action);
+        }
+      }
+
+      document.getElementById('choice-continue').addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        sendChoice('continue');
+      });
+      document.getElementById('choice-close').addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        sendChoice('close');
+      });
 
       setProgress(4, 'Инициализация CoreX…', { phase: 'boot' });
 
@@ -412,113 +437,10 @@
           setProgress(payload?.progress ?? progress, payload?.message, {
             phase: payload?.phase,
             error: payload?.error,
+            choice: payload?.choice,
           });
         });
       }
-
-      const canvas = document.getElementById('fx');
-      const ctx = canvas.getContext('2d');
-      let w = 0;
-      let h = 0;
-      let t = 0;
-      const nodes = [];
-      const sparks = [];
-
-      function resize() {
-        w = canvas.width = window.innerWidth * devicePixelRatio;
-        h = canvas.height = window.innerHeight * devicePixelRatio;
-        canvas.style.width = window.innerWidth + 'px';
-        canvas.style.height = window.innerHeight + 'px';
-        if (nodes.length < 18) {
-          nodes.length = 0;
-          for (let i = 0; i < 22; i += 1) {
-            nodes.push({
-              x: Math.random() * w,
-              y: Math.random() * h,
-              vx: (Math.random() - 0.5) * 0.45,
-              vy: (Math.random() - 0.5) * 0.45,
-              hue: Math.random() > 0.5 ? 195 : 270,
-            });
-          }
-        }
-      }
-
-      function frame() {
-        t += 0.016;
-        ctx.clearRect(0, 0, w, h);
-
-        const cx = w * 0.5;
-        const cy = h * 0.4;
-
-        for (const n of nodes) {
-          n.x += n.vx * devicePixelRatio;
-          n.y += n.vy * devicePixelRatio;
-          const dx = cx - n.x;
-          const dy = cy - n.y;
-          n.vx += dx * 0.000015;
-          n.vy += dy * 0.000015;
-          if (n.x < 0 || n.x > w) n.vx *= -1;
-          if (n.y < 0 || n.y > h) n.vy *= -1;
-        }
-
-        for (let i = 0; i < nodes.length; i += 1) {
-          for (let j = i + 1; j < nodes.length; j += 1) {
-            const a = nodes[i];
-            const b = nodes[j];
-            const dist = Math.hypot(a.x - b.x, a.y - b.y);
-            if (dist > 140 * devicePixelRatio) continue;
-            const alpha = (1 - dist / (140 * devicePixelRatio)) * 0.35;
-            const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-            grad.addColorStop(0, `hsla(${a.hue}, 90%, 65%, ${alpha})`);
-            grad.addColorStop(1, `hsla(${b.hue}, 90%, 65%, ${alpha * 0.6})`);
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = 1.1 * devicePixelRatio;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-
-        for (const n of nodes) {
-          const pulse = 1 + Math.sin(t * 3 + n.x * 0.01) * 0.25;
-          ctx.beginPath();
-          ctx.fillStyle = `hsla(${n.hue}, 95%, 70%, 0.85)`;
-          ctx.arc(n.x, n.y, 2.2 * pulse * devicePixelRatio, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        if (Math.random() < 0.12) {
-          sparks.push({
-            x: cx + (Math.random() - 0.5) * 120 * devicePixelRatio,
-            y: cy + (Math.random() - 0.5) * 80 * devicePixelRatio,
-            vx: (Math.random() - 0.5) * 2.5,
-            vy: (Math.random() - 0.5) * 2.5,
-            life: 1,
-          });
-        }
-
-        for (let i = sparks.length - 1; i >= 0; i -= 1) {
-          const s = sparks[i];
-          s.x += s.vx * devicePixelRatio;
-          s.y += s.vy * devicePixelRatio;
-          s.life -= 0.028;
-          if (s.life <= 0) {
-            sparks.splice(i, 1);
-            continue;
-          }
-          ctx.beginPath();
-          ctx.fillStyle = `rgba(0, 210, 255, ${s.life * 0.9})`;
-          ctx.arc(s.x, s.y, 1.8 * s.life * devicePixelRatio, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        requestAnimationFrame(frame);
-      }
-
-      window.addEventListener('resize', resize);
-      resize();
-      requestAnimationFrame(frame);
     </script>
   </body>
 </html>

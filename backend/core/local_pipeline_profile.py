@@ -38,9 +38,9 @@ def resolve_model_tier(active: ActiveLlm) -> ModelTier:
     if preset:
         return preset.tier  # type: ignore[return-value]
     model = (active.model_name or "").lower()
-    if any(token in model for token in ("phi3", "phi-3", "mini", "1b", "2b", "3b")):
+    if any(token in model for token in ("phi3", "phi-3", "mini", ":1b", ":2b", ":3b")):
         return "low"
-    if any(token in model for token in ("7b", "8b", "coder")):
+    if any(token in model for token in (":7b", ":8b")):
         return "medium"
     return "high"
 
@@ -57,13 +57,13 @@ def build_local_pipeline_profile(active: ActiveLlm) -> LocalPipelineProfile | No
             model_tier="low",
             compact_prompt=True,
             reset_history_each_step=True,
-            knowledge_chars=2_500,
-            num_predict_agent=1_024,
-            num_predict_tool=640,
+            knowledge_chars=800,
+            num_predict_agent=512,
+            num_predict_tool=384,
             relax_verification=True,
             hint_ru=(
-                "Локальный режим (малый контекст): один файл за ход, пиши развёрнутый content, "
-                "без run_command на скриптах — только write_file / view_file."
+                "Малая локальная модель (4096 токенов): один файл за ход, "
+                "только write_file / view_file / patch_file, без run_command."
             ),
         )
 
@@ -77,8 +77,8 @@ def build_local_pipeline_profile(active: ActiveLlm) -> LocalPipelineProfile | No
             num_predict_tool=1_024,
             relax_verification=False,
             hint_ru=(
-                "Локальный режим: один файл за ход, но content должен быть длинным "
-                "(HTML ≥1200, CSS ≥1400, JS ≥500 символов)."
+                "Локальный режим: один полный файл за ход (```python). "
+                "Сайт: HTML/CSS/JS по одному файлу за ход."
             ),
         )
 
@@ -149,11 +149,39 @@ def local_team_suggestion_ru(active: ActiveLlm, pipeline_id: str) -> str | None:
     return None
 
 
-def compact_persona_for_local(persona_body: str, persona_id: str | None) -> str:
+def _local_code_mode_body(head: str, lang_block: str) -> str:
+    return (
+        f"{head}\n\n"
+        f"{lang_block}"
+        "ЛОКАЛЬНЫЙ РЕЖИМ CoreX:\n"
+        "- list_directory, write_file, append_file, patch_file, run_file.\n"
+        "- Новый файл: ПОЛНАЯ программа в ```python. JSON не обязателен.\n"
+        "- Один файл целиком за ход. Не каркас из двух print. Не inspect пустой папки.\n"
+        "- Не повторяй import. Не копируй инструкции System в файл.\n"
+        "- Не читай design-system/ и не пиши HTML, если задача не про сайт.\n"
+    )
+
+
+def compact_persona_for_local(
+    persona_body: str,
+    persona_id: str | None,
+    *,
+    coding_language: str = "auto",
+    user_task: str = "",
+) -> str:
     """Урезать персону для локальных моделей — убрать run_command/search.py."""
+    from core.coding_language import language_forces_code, language_prompt_ru
+    from core.web_delivery_layers import is_web_site_task
+
     agent = (persona_id or "").replace("agent:", "").lower()
     head = "\n".join((persona_body or "").strip().splitlines()[:8])[:480]
+    lang_block = language_prompt_ru(coding_language)
+    web_task = is_web_site_task(user_task, coding_language=coding_language)
+    if language_forces_code(coding_language):
+        return _local_code_mode_body(head, lang_block)
     if "designer" in agent or "ui-ux" in agent:
+        if not web_task:
+            return _local_code_mode_body(head, lang_block)
         return (
             f"{head}\n\n"
             "ЛОКАЛЬНЫЙ РЕЖИМ CoreX (дизайнер):\n"
@@ -164,6 +192,8 @@ def compact_persona_for_local(persona_body: str, persona_id: str | None) -> str:
             "- run_command ЗАПРЕЩЁН. done только после write_file в design-system/.\n"
         )
     if "developer" in agent or "lead" in agent:
+        if not web_task:
+            return _local_code_mode_body(head, lang_block)
         return (
             f"{head}\n\n"
             "ЛОКАЛЬНЫЙ РЕЖИМ CoreX (разработчик, веб-слои):\n"
@@ -179,12 +209,37 @@ def compact_persona_for_local(persona_body: str, persona_id: str | None) -> str:
             "ЛОКАЛЬНЫЙ РЕЖИМ CoreX:\n"
             "- view_file, patch_file, run_file. Один JSON за ход.\n"
         )
-    return head[:700]
+    extra = f"\n{lang_block}" if lang_block else ""
+    return (head[:700] + extra).strip()
 
 
-def pipeline_step_json_hint(agent_id: str | None, *, user_task: str = "") -> str:
+def pipeline_step_json_hint(
+    agent_id: str | None,
+    *,
+    user_task: str = "",
+    coding_language: str = "auto",
+) -> str:
+    from core.coding_language import language_forces_code, resolve_effective_language
+
     agent = (agent_id or "").replace("agent:", "").lower()
+    effective = resolve_effective_language(coding_language, user_task)
+    code_hint = (
+        "TURN 1 — полный файл. JSON не обязателен:\n"
+        "```python\n"
+        "# весь рабочий файл — имя подбери сам, не main.py по привычке\n"
+        "```\n"
+        "Или JSON write_file + тот же блок ``` после него.\n"
+        "Не каркас. Не list_directory. Один файл за ход.\n"
+        "Do not view_file design-system/."
+    )
+    if language_forces_code(effective):
+        return code_hint
+    from core.web_delivery_layers import is_web_site_task
+
+    web_task = is_web_site_task(user_task, coding_language=coding_language)
     if "designer" in agent or "ui-ux" in agent:
+        if not web_task:
+            return code_hint
         return (
             "TURN 1 — write_file design-system/MASTER.md (full spec):\n"
             '{"status":"act","server":"filesystem","tool":"write_file",'
@@ -194,6 +249,8 @@ def pipeline_step_json_hint(agent_id: str | None, *, user_task: str = "") -> str
             '"arguments":{"path":"design-system/pages/index.md","content":"# Page index\\n..."}}'
         )
     if "developer" in agent or "lead" in agent:
+        if not web_task:
+            return code_hint
         return (
             "LAYER 1 — view_file design-system/MASTER.md\n"
             '{"status":"act","server":"filesystem","tool":"view_file",'
@@ -205,13 +262,19 @@ def pipeline_step_json_hint(agent_id: str | None, *, user_task: str = "") -> str
 
 
 COMPACT_AGENT_SYSTEM_PROMPT = (
-    "You are CoreX agent. Reply with ONE raw JSON object per turn.\n"
-    "Tools:\n"
-    '- view_file: {"status":"act","server":"filesystem","tool":"view_file","arguments":{"path":"main.py"}}\n'
-    '- write_file: {"status":"act","server":"filesystem","tool":"write_file","arguments":{"path":"index.html","content":"..."}}\n'
-    '- patch_file: {"status":"act","server":"filesystem","tool":"patch_file","arguments":{"path":"main.py","op":"replace","line":1,"content":"fix"}}\n'
-    '- run_file: {"status":"act","server":"terminal","tool":"run_file","arguments":{"path":"main.py"}}\n'
-    "Rules: new files → write_file (one file per turn). Edit → view_file then patch_file. "
-    "Avoid run_command on local PC. Finish: {\"status\":\"done\",\"message\":\"кратко по-русски\"}.\n"
-    "Escape quotes in content. No markdown outside JSON.\n"
+    "You are CoreX. For a new program, output the COMPLETE file. JSON is optional.\n"
+    "Preferred: ```python\\n<full working program>\\n``` — CoreX saves it under a fitting name "
+    "(snake.py, calculator.py, or folder/<name>.py if the user said /folder). Do not default to main.py.\n"
+    "Optional header then fence: "
+    '{"status":"act","server":"filesystem","tool":"write_file","arguments":{"path":"app.py"}}\n'
+    "One complete file per turn. Not a 2-line stub. Do not inspect an empty folder first.\n"
+    "Edits: view_file then patch_file. Missing pip packages are not syntax errors. "
+    "CoreX installs pip into the same Python as Run. "
+            "Window/GUI: follow the current plan step only (short tkinter Canvas + mainloop). "
+            "Do not raycast. Do not swap in a different app. "
+            "Empty pygame window is forbidden. Need mainloop or a real UI loop, not pass. "
+    "If pygame is needed, CoreX installs pygame-ce (Python 3.14 has no classic pygame wheels). "
+    "Do not replace a working program with an empty pygame window. "
+    "CoreX fixes indent/truncation, not program logic.\n"
+    'Finish: {"status":"done","message":"кратко по-русски"}.\n'
 )

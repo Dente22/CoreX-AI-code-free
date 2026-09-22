@@ -121,13 +121,17 @@ def _search_dirs_for_venv(project_root: Path, start_dir: Path) -> list[Path]:
 
 
 def resolve_project_python(project_root: Path, context_dir: Path) -> tuple[str, str | None]:
-    """Python для запуска: venv проекта (если есть) или системный."""
+    """Python для запуска: venv проекта, иначе интерпретатор CoreX (часто тоже venv)."""
     for base in _search_dirs_for_venv(project_root, context_dir):
         for name in _VENV_DIR_NAMES:
             py = _venv_python_path(base / name)
             if py:
                 return str(py), name
-    return sys.executable, None
+    python_exe = sys.executable
+    scripts = _venv_scripts_dir(python_exe)
+    if scripts:
+        return python_exe, scripts.parent.name
+    return python_exe, None
 
 
 def _venv_scripts_dir(python_exe: str) -> Path | None:
@@ -139,12 +143,54 @@ def _venv_scripts_dir(python_exe: str) -> Path | None:
 
 def _env_with_venv(python_exe: str, venv_label: str | None) -> dict[str, str]:
     env = os.environ.copy()
-    if venv_label:
-        scripts = _venv_scripts_dir(python_exe)
-        if scripts:
-            env["VIRTUAL_ENV"] = str(scripts.parent)
-            env["PATH"] = str(scripts) + os.pathsep + env.get("PATH", "")
+    scripts = _venv_scripts_dir(python_exe)
+    if scripts:
+        env["VIRTUAL_ENV"] = str(scripts.parent)
+        env["PATH"] = str(scripts) + os.pathsep + env.get("PATH", "")
     return merge_ollama_env(env)
+
+
+_PIP_BARE_RE = re.compile(r"^(pip3?\.exe|pip3?)\s+(.*)$", re.IGNORECASE)
+_PIP_MODULE_RE = re.compile(
+    r"^(?:python(?:3(?:\.\d+)?)?|py(?:thon)?)(?:\.exe)?\s+-m\s+pip\s+(.*)$",
+    re.IGNORECASE,
+)
+_PYTHON_BARE_RE = re.compile(
+    r"^(?:python(?:3(?:\.\d+)?)?|py(?:thon)?)(?:\.exe)?\s+(.*)$",
+    re.IGNORECASE,
+)
+
+
+def _quote_exe(path: str) -> str:
+    if not path:
+        return path
+    if re.search(r"\s", path) and not path.startswith(('"', "'")):
+        return f'"{path}"'
+    return path
+
+
+def rewrite_shell_command_for_project_python(command: str, python_exe: str) -> str:
+    """pip/python в консоли → тот же интерпретатор, которым жмёт ▶."""
+    text = (command or "").strip()
+    py = (python_exe or "").strip()
+    if not text or not py:
+        return text
+    quoted = _quote_exe(py)
+    if text.startswith(quoted) or text.startswith(py):
+        return text
+    match = _PIP_BARE_RE.match(text)
+    if match:
+        return f"{quoted} -m pip {match.group(2)}"
+    match = _PIP_MODULE_RE.match(text)
+    if match:
+        return f"{quoted} -m pip {match.group(1)}"
+    match = _PYTHON_BARE_RE.match(text)
+    if match:
+        rest = match.group(1)
+        if rest.startswith("-m pip"):
+            return f"{quoted} {rest}"
+        return f"{quoted} {rest}"
+    return text
 
 
 def _build_file_command(
@@ -193,31 +239,25 @@ def _build_file_command(
 
 
 def _append_python_hints(result: dict, *, python_exe: str, venv_label: str | None) -> dict:
+    from core.python_deps import extract_missing_module, pip_package_name
+
     output = result.get("output") or ""
-    match = re.search(r"ModuleNotFoundError: No module named '([^']+)'", output)
-    if not match:
+    module = extract_missing_module(output)
+    if not module:
         return result
 
-    module = match.group(1)
-    scripts = _venv_scripts_dir(python_exe)
-    if scripts and (scripts / ("pip.exe" if sys.platform == "win32" else "pip")).is_file():
-        pip_cmd = f'"{scripts / ("pip.exe" if sys.platform == "win32" else "pip")}" install {module}'
-    else:
-        pip_cmd = f"pip install {module}"
+    package = pip_package_name(module)
+    pip_cmd = f'{_quote_exe(python_exe)} -m pip install {package}'
 
     venv_note = f" (venv: {venv_label})" if venv_label else ""
     hint = (
         f"\n\n── Подсказка CoreX ──\n"
         f"Модуль «{module}» не установлен{venv_note}.\n"
-        f"В консоли внизу выполните:\n"
+        f"В консоли внизу достаточно:\n"
+        f"  pip install {package}\n"
+        f"CoreX поставит пакет в тот же Python, которым запускает ▶:\n"
         f"  {pip_cmd}\n"
     )
-    if not venv_label:
-        hint += (
-            "Рекомендуется venv в корне проекта:\n"
-            "  python -m venv .venv\n"
-            f"  .venv\\Scripts\\pip install {module}\n"
-        )
 
     result["output"] = output + hint
     result["hint"] = pip_cmd
@@ -231,6 +271,7 @@ def _run_process_sync(
     command: str | None = None,
     timeout: int = DEFAULT_TIMEOUT_SEC,
     env: dict[str, str] | None = None,
+    stdin_devnull: bool = False,
 ) -> dict:
     """Синхронный запуск через subprocess.run (совместимо с Windows SelectorEventLoop)."""
     run_kwargs: dict = {
@@ -242,6 +283,8 @@ def _run_process_sync(
         "timeout": timeout,
         "env": env or os.environ.copy(),
     }
+    if stdin_devnull:
+        run_kwargs["stdin"] = subprocess.DEVNULL
     if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
         run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
@@ -292,6 +335,7 @@ async def _run_process(
     command: str | None = None,
     timeout: int = DEFAULT_TIMEOUT_SEC,
     env: dict[str, str] | None = None,
+    stdin_devnull: bool = False,
 ) -> dict:
     return await asyncio.to_thread(
         _run_process_sync,
@@ -300,10 +344,17 @@ async def _run_process(
         command=command,
         timeout=timeout,
         env=env,
+        stdin_devnull=stdin_devnull,
     )
 
 
-async def run_file(project_root: Path, rel_path: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> dict:
+async def run_file(
+    project_root: Path,
+    rel_path: str,
+    timeout: int = DEFAULT_TIMEOUT_SEC,
+    *,
+    stdin_devnull: bool = False,
+) -> dict:
     target = _resolve_in_project(project_root, rel_path)
     if not target:
         return {"success": False, "error": "Путь вне проекта"}
@@ -317,7 +368,13 @@ async def run_file(project_root: Path, rel_path: str, timeout: int = DEFAULT_TIM
 
     argv, display = built
     env = _env_with_venv(python_exe, venv_label)
-    result = await _run_process(argv=argv, cwd=target.parent, timeout=timeout, env=env)
+    result = await _run_process(
+        argv=argv,
+        cwd=target.parent,
+        timeout=timeout,
+        env=env,
+        stdin_devnull=stdin_devnull,
+    )
     result["command"] = display
     result["file"] = rel_path.replace("\\", "/")
     result["cwd"] = str(target.parent)
@@ -371,6 +428,7 @@ async def run_command(
             work_dir = resolved.parent
 
     python_exe, venv_label = resolve_project_python(root, work_dir)
+    command = rewrite_shell_command_for_project_python(command, python_exe)
     env = _env_with_venv(python_exe, venv_label)
     from core.core_x_library import COREX_ROOT
 

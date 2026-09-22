@@ -1,5 +1,11 @@
-import type { AiProviderPreset } from './aiProvider';
-import { getModelShortLabel, tierLabel } from './aiProvider';
+import type { AiProviderPreset, HardwareTier } from './aiProvider';
+import {
+  CODING_PROVIDER_BY_TIER,
+  getModelShortLabel,
+  recommendHardwareTier,
+  recommendedProviderId,
+  tierLabel,
+} from './aiProvider';
 
 export type OfflineModelInput = Pick<
   AiProviderPreset,
@@ -50,28 +56,56 @@ export interface OfflineModelInstallGuide {
 
 export interface OfflineHardwareHint {
   availableRamGb?: number;
+  availableVramGb?: number;
 }
 
 const BEST_FOR: Record<string, string> = {
-  'ollama-qwen': 'Код, правки файлов, повседневная разработка',
-  'ollama-claude': 'Сложные задачи, ревью, длинные рассуждения',
+  'ollama-qwen': 'Код на 4 ГБ VRAM, повседневные правки',
+  'ollama-qwen-7b': 'Код на 8 ГБ VRAM, основной домашний вариант',
+  'ollama-qwen-14b': 'Максимум качества кода, нагрузка выше',
+  'ollama-claude': 'Чат, ревью, рассуждения',
   'ollama-lite': 'Слабые ПК, быстрый ответ, простые правки',
 };
 
 const MODEL_PROFILES: Record<string, Omit<OfflineModelProfile, 'id' | 'shortName' | 'fullName' | 'ramLabel' | 'pullCommand' | 'modelName'>> = {
   'ollama-qwen': {
     summary:
-      'Специализированная модель для программирования. Лучший выбор для ежедневной работы с кодом в CoreX.',
+      'Специализированная 3B-модель для кода на 4 ГБ VRAM. Контекст строго 4096 токенов.',
     strengths: [
+      'Влезает в NVIDIA T600 4 ГБ (Q4)',
       'Хорошо пишет и правит Python, JS, TS, HTML',
-      'Понимает структуру проекта и файловые правки',
-      'Оптимальный баланс качества и требований к RAM',
+      'Быстрее 7B на слабом GPU',
     ],
     weaknesses: [
-      'На слабом ПК (<8 ГБ) может тормозить',
-      'Сложные архитектурные рассуждения слабее, чем у Llama',
+      'Короткое окно контекста (4096 токенов)',
+      'Сложные архитектурные рассуждения слабее, чем у Llama 8B',
     ],
-    whenToUse: 'Когда нужно создавать проекты, править файлы и писать код каждый день.',
+    whenToUse: 'Когда нужно писать код локально на видеокарте 4 ГБ без облака.',
+  },
+  'ollama-qwen-7b': {
+    summary: '7B-кодер для видеокарт 8 ГБ. Сильнее 3B, ещё целиком на GPU.',
+    strengths: [
+      'Влезает в RTX 3050 8 ГБ при контексте 4096',
+      'Заметно умнее 3B на многофайловых задачах',
+      'Главная модель для домашнего ПК',
+    ],
+    weaknesses: [
+      'Не влезет в T600 4 ГБ без выгрузки в RAM',
+      'Скачивается ~4.7 ГБ',
+    ],
+    whenToUse: 'Домашний ПК с 8 ГБ VRAM и 16+ ГБ RAM.',
+  },
+  'ollama-qwen-14b': {
+    summary: '14B-кодер: максимум локального качества. На 8 ГБ часть слоёв уйдёт в RAM.',
+    strengths: [
+      'Лучшее качество кода в каталоге CoreX',
+      '32 ГБ RAM выдерживают выгрузку слоёв',
+    ],
+    weaknesses: [
+      'Медленнее 7B',
+      'На 4 ГБ VRAM практически не работает',
+    ],
+    whenToUse: 'Когда нужен предел качества и есть 8+ ГБ VRAM и 32 ГБ RAM.',
   },
   'ollama-claude': {
     summary:
@@ -131,23 +165,15 @@ export function resolveInitialFocusedModelId(
 }
 
 const TRADEOFFS: Record<string, string> = {
-  'ollama-qwen': 'Лучший баланс качества и RAM для CoreX',
-  'ollama-claude': 'Точнее на сложных задачах, но тяжелее по памяти',
+  'ollama-qwen': 'Целиком в 4 ГБ VRAM, слабее 7B',
+  'ollama-qwen-7b': 'Лучший баланс на 8 ГБ VRAM',
+  'ollama-qwen-14b': 'Умнее, но медленнее; часть в RAM',
+  'ollama-claude': 'Сильнее в чате, слабее в коде, чем Qwen 7B',
   'ollama-lite': 'Легче и быстрее, но слабее на большом коде',
 };
 
 function pickDefault(models: OfflineModelInput[]): OfflineModelInput {
   return models.find((m) => m.is_default) ?? models[0];
-}
-
-function fitByRam(models: OfflineModelInput[], ram: number): OfflineModelInput | null {
-  const sorted = [...models].sort((a, b) => b.min_ram_gb - a.min_ram_gb);
-  for (const model of sorted) {
-    if (ram >= model.min_ram_gb) {
-      return model;
-    }
-  }
-  return models.find((m) => m.tier === 'low') ?? models[models.length - 1] ?? null;
 }
 
 export function recommendOfflineModel(
@@ -158,33 +184,42 @@ export function recommendOfflineModel(
     return { id: '', reason: 'Нет доступных локальных моделей.' };
   }
 
+  const vram = hardware.availableVramGb;
   const ram = hardware.availableRamGb;
-  if (typeof ram === 'number' && Number.isFinite(ram) && ram > 0) {
-    const fitted = fitByRam(models, ram);
-    if (fitted) {
-      if (fitted.tier === 'low') {
-        return {
-          id: fitted.id,
-          reason: `Мало RAM (~${ram} ГБ) — лучше лёгкая модель ${getModelShortLabel(fitted as AiProviderPreset)}.`,
-        };
-      }
-      if (fitted.tier === 'high') {
-        return {
-          id: fitted.id,
-          reason: `Достаточно RAM (~${ram} ГБ) — можно взять более сильную модель ${getModelShortLabel(fitted as AiProviderPreset)}.`,
-        };
-      }
+  const hasVram = typeof vram === 'number' && Number.isFinite(vram) && vram > 0;
+  const hasRam = typeof ram === 'number' && Number.isFinite(ram) && ram > 0;
+  const preferredId =
+    hasVram || hasRam ? recommendedProviderId(hasVram ? vram : undefined, hasRam ? ram : undefined) : '';
+  const preferred = preferredId ? models.find((model) => model.id === preferredId) : undefined;
+  if (preferred) {
+    const label = getModelShortLabel(preferred as AiProviderPreset);
+    if (hasVram) {
       return {
-        id: fitted.id,
-        reason: `Для ~${ram} ГБ RAM рекомендуем ${getModelShortLabel(fitted as AiProviderPreset)} — баланс качества и скорости.`,
+        id: preferred.id,
+        reason: `По VRAM (~${vram} ГБ) рекомендуем ${label}.`,
       };
     }
+    return {
+      id: preferred.id,
+      reason: `По RAM (~${ram} ГБ, без VRAM) рекомендуем ${label}.`,
+    };
+  }
+
+  const tier: HardwareTier = recommendHardwareTier(hasVram ? vram : undefined, hasRam ? ram : undefined);
+  const onTier = models.filter((model) => model.tier === tier);
+  const codingId = CODING_PROVIDER_BY_TIER[tier];
+  const coding = onTier.find((model) => model.id === codingId) ?? onTier[0];
+  if (coding) {
+    return {
+      id: coding.id,
+      reason: `Для вкладки «${tierLabel(tier)}» рекомендуем ${getModelShortLabel(coding as AiProviderPreset)}.`,
+    };
   }
 
   const fallback = pickDefault(models);
   return {
     id: fallback.id,
-    reason: `Без данных о RAM рекомендуем ${getModelShortLabel(fallback as AiProviderPreset)} по умолчанию.`,
+    reason: `Без данных о железе рекомендуем ${getModelShortLabel(fallback as AiProviderPreset)} по умолчанию.`,
   };
 }
 
@@ -241,7 +276,7 @@ export function buildModelInstallGuide(model: OfflineModelInput): OfflineModelIn
       'Нажмите «Скачать» — CoreX загрузит GGUF с Hugging Face в папку models/ (без registry.ollama.ai).',
       'Дождитесь окончания загрузки и регистрации в Ollama (первый раз может занять несколько минут).',
       'Проверьте: `ollama list` — модель должна появиться в списке.',
-      `В CoreX: режим «Локально» → выберите «${label}» в списке моделей.`,
+      `В CoreX: Настройки → Модели → выберите «${label}».`,
       'Отправьте тестовое сообщение в чат — если ответ пришёл, всё готово.',
     ],
   };

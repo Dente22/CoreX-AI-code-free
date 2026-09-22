@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
 from core.pipeline_service import list_project_pipelines
+from core.project_paths import COREX_INTERNAL_DIRS
 
 VISIO_REL_DIR = Path("chat") / "visio"
-WORKFLOW_FILE = "workflow.mmd"
-ARCHITECTURE_FILE = "architecture.mmd"
 
 _SKIP_DIRS = {
     ".git",
@@ -125,7 +123,7 @@ def _structure_diagram(project_root: Path) -> str:
         if count >= 14:
             lines.append('    root --> more["…"]')
             break
-        if entry.name in _SKIP_DIRS or entry.name.startswith(".") or entry.name == "chat":
+        if entry.name in _SKIP_DIRS or entry.name.startswith(".") or entry.name in COREX_INTERNAL_DIRS:
             continue
         node_id = f"n{count}"
         label = _mermaid_label(entry.name)
@@ -136,7 +134,7 @@ def _structure_diagram(project_root: Path) -> str:
                 for child in sorted(entry.iterdir(), key=lambda p: p.name.lower()):
                     if child_count >= 4:
                         break
-                    if child.name in _SKIP_DIRS or child.name.startswith(".") or child.name == "chat":
+                    if child.name in _SKIP_DIRS or child.name.startswith(".") or child.name in COREX_INTERNAL_DIRS:
                         continue
                     child_id = f"{node_id}_{child_count}"
                     child_label = _mermaid_label(child.name)
@@ -195,7 +193,7 @@ def _collect_project_diagrams(project_root: Path) -> list[dict]:
         diagrams.append({
             "id": diagram_id,
             "label": _label_for_mmd(path.stem),
-            "path": path.relative_to(root).as_posix(),
+            "path": "",
             "source": source,
             "origin": "file",
             "kind": "diagram",
@@ -216,7 +214,7 @@ def _collect_project_diagrams(project_root: Path) -> list[dict]:
         diagrams.append({
             "id": "pipelines",
             "label": "Команды проекта",
-            "path": str((Path("chat") / "pipelines").as_posix()),
+            "path": "",
             "source": pipelines,
             "origin": "generated",
             "kind": "pipelines",
@@ -227,7 +225,7 @@ def _collect_project_diagrams(project_root: Path) -> list[dict]:
         diagrams.append({
             "id": "memory",
             "label": "Память проекта",
-            "path": "chat/project_memory.md",
+            "path": "",
             "source": _memory_diagram(memory_path),
             "origin": "generated",
             "kind": "memory",
@@ -242,7 +240,7 @@ def _memory_diagram(memory_path: Path) -> str:
     except OSError:
         return ""
 
-    lines = ["flowchart TB", '    mem["chat/project_memory.md"]']
+    lines = ["flowchart TB", '    mem["Память проекта"]']
     headings = re.findall(r"^#{1,3}\s+(.+)$", text, re.MULTILINE)
     for index, heading in enumerate(headings[:8]):
         node_id = f"h{index}"
@@ -265,8 +263,8 @@ def get_visio_payload(project_root: Path) -> dict:
             "architecture": _default_system_architecture(),
         },
         "paths": {
-            "workflow": str((VISIO_REL_DIR / WORKFLOW_FILE).as_posix()),
-            "architecture": str((VISIO_REL_DIR / ARCHITECTURE_FILE).as_posix()),
-            "directory": str(VISIO_REL_DIR.as_posix()),
+            "workflow": "",
+            "architecture": "",
+            "directory": "",
         },
     }

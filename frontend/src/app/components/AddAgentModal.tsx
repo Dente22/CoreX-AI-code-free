@@ -129,7 +129,7 @@ export function AddAgentModal({
           {error ? <p className="text-xs text-red-400">{error}</p> : null}
 
           <p className="text-[10px] text-[#6b7280]">
-            Агент сохранится в chat/agents/ открытого проекта. Можно ссылаться на скилы:
+            Агент сохранится в открытом проекте. Можно ссылаться на скилы:
             `core_x_skills/.../SKILL.md`
           </p>
 

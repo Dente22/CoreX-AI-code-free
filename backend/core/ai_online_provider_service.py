@@ -231,7 +231,7 @@ class AiOnlineProviderService:
     def _save(self, data: dict[str, Any]) -> None:
         if self._store_path.resolve() == self._legacy_path.resolve():
             raise RuntimeError(
-                "Отказ: нельзя сохранять API-ключи в chat/ проекта. "
+                "Отказ: нельзя сохранять API-ключи в файлах проекта. "
                 "Используйте локальный каталог CoreX/secrets."
             )
         _write_json_store(self._store_path, data)

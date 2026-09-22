@@ -19,8 +19,8 @@ from core.ollama_model_session import warmup_ollama_model
 def test_format_ollama_connection_error_for_connect_refused():
     exc = OSError("Cannot connect to host 127.0.0.1:11435 ssl:default [Connect call failed ('127.0.0.1', 11435)]")
     msg = format_ollama_connection_error(exc, model_name="llama3.1:8b")
-    assert "11435" in msg
     assert "ollama" in msg.lower()
+    assert "Cannot connect to host" not in msg
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_warmup_returns_friendly_connection_error(monkeypatch):
     result = await warmup_ollama_model("llama3.1:8b", "http://127.0.0.1:11435")
 
     assert result.get("success") is False
-    assert "11435" in str(result.get("error") or "")
+    assert "ollama" in str(result.get("error") or "").lower()
     assert "Cannot connect to host" not in str(result.get("error") or "")
 
 
@@ -126,5 +126,5 @@ async def test_activate_already_loaded_requires_running_server(monkeypatch):
     result = await activate_ollama_model("phi3:mini", "http://127.0.0.1:11435", preload=True)
 
     assert result.get("success") is False
-    assert "11435" in str(result.get("error") or "")
+    assert "Ollama не отвечает" in str(result.get("error") or "")
     assert get_active_ollama_model() is None

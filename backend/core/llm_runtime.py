@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -65,6 +65,63 @@ def resolve_active_llm(
         api_type="ollama",
         model_tier=model_tier,
     )
+
+
+def build_local_active(runtime_service: AiRuntimeService, local_client: Any) -> ActiveLlm:
+    """Локальный Ollama-пресет независимо от сохранённого режима UI."""
+    preset = runtime_service.local_service.apply_to_client(local_client)
+    preset_dict = preset.to_dict()
+    provider_id = str(preset_dict.get("id") or "")
+    catalog = get_preset(provider_id) if validate_provider_id(provider_id) else None
+    return ActiveLlm(
+        client=local_client,
+        mode="local",
+        provider_id=provider_id,
+        provider_name=str(preset_dict.get("name") or "Локальная модель"),
+        model_name=str(preset_dict.get("model_name") or getattr(local_client, "model_name", "")),
+        api_type="ollama",
+        model_tier=catalog.tier if catalog else "medium",
+    )
+
+
+def build_online_active(runtime_service: AiRuntimeService, online_client: Any) -> ActiveLlm | None:
+    """Онлайн-провайдер, если ключ и модель уже настроены."""
+    provider = runtime_service.online_service.apply_to_client(online_client)
+    if not provider:
+        return None
+    api_type = str(provider.get("api_type") or getattr(online_client, "api_type", "openai"))
+    model_name = str(provider.get("model_name") or getattr(online_client, "model_name", ""))
+    if api_type == "gemini":
+        model_name = normalize_gemini_model_name(model_name)
+    return ActiveLlm(
+        client=online_client,
+        mode="online",
+        provider_id=str(provider.get("id") or ""),
+        provider_name=str(provider.get("name") or "Онлайн API"),
+        model_name=model_name,
+        api_type=api_type,
+    )
+
+
+async def resolve_ready_llm(
+    runtime_service: AiRuntimeService,
+    local_client: Any,
+    online_client: Any,
+    *,
+    local_model_override: str | None = None,
+) -> ActiveLlm:
+    """Сначала локальный Ollama; облако только если локальный движок недоступен."""
+    local = build_local_active(runtime_service, local_client)
+    override = str(local_model_override or "").strip()
+    if override:
+        local.client.model_name = override
+        local = replace(local, model_name=override)
+    if await ensure_llm_ready(local):
+        return local
+    online = build_online_active(runtime_service, online_client)
+    if online is not None and await ensure_llm_ready(online):
+        return online
+    return local
 
 
 async def ensure_llm_ready(active: ActiveLlm) -> bool:

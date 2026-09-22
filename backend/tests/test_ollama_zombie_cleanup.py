@@ -14,7 +14,8 @@ from core.ollama_lifecycle import (
 
 
 @pytest.fixture(autouse=True)
-def _reset_state():
+def _reset_state(monkeypatch):
+    monkeypatch.setattr("core.ollama_lifecycle.should_skip_desktop_ollama", lambda: False)
     reset_ollama_lifecycle_state()
     yield
     reset_ollama_lifecycle_state()
@@ -71,6 +72,10 @@ async def test_cleanup_zombie_llama_workers_kills_orphans_not_under_desktop_olla
 @pytest.mark.asyncio
 async def test_ensure_ollama_cleans_zombies_before_start(monkeypatch):
     monkeypatch.setattr(
+        "core.ollama_lifecycle._is_desktop_ollama_running",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
         "core.ollama_lifecycle._is_server_running",
         AsyncMock(side_effect=[False, False, True]),
     )
@@ -79,6 +84,8 @@ async def test_ensure_ollama_cleans_zombies_before_start(monkeypatch):
     popen = MagicMock()
     popen.poll.return_value = None
     monkeypatch.setattr("core.ollama_lifecycle.subprocess.Popen", MagicMock(return_value=popen))
+    monkeypatch.setattr("core.device_profile.nvidia_gpu_present", lambda: False)
+    monkeypatch.setattr("core.gpu_preference.apply_gpu_env", lambda env, gpu_id=None: env)
 
     from core.ollama_lifecycle import ensure_ollama_serve_running
 

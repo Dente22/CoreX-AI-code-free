@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import subprocess
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
@@ -37,6 +38,10 @@ _LIMITS_BY_TIER: dict[Tier, dict[str, int]] = {
 }
 
 
+LOCAL_NUM_CTX = 4096
+LOW_VRAM_GB = 4.5
+
+
 @dataclass(frozen=True)
 class DeviceProfile:
     tier: Tier
@@ -46,11 +51,13 @@ class DeviceProfile:
     platform: str
     machine: str
     recommended_limits: dict[str, int]
+    vram_gb: float | None = None
 
     def summary_ru(self) -> str:
+        vram = f", VRAM {self.vram_gb:.1f} ГБ" if self.vram_gb is not None else ""
         return (
             f"Устройство: {self.tier} ({self.cpu_cores} ядер, "
-            f"RAM {self.ram_gb:.1f} ГБ, доступно {self.ram_available_gb:.1f} ГБ)"
+            f"RAM {self.ram_gb:.1f} ГБ, доступно {self.ram_available_gb:.1f} ГБ{vram})"
         )
 
     def limits_summary_ru(self) -> str:
@@ -62,11 +69,8 @@ class DeviceProfile:
         )
 
     def ollama_num_ctx(self) -> int:
-        if self.tier == "low":
-            return 4096
-        if self.tier == "high":
-            return 8192
-        return 6144
+        """Жёсткий потолок локального контекста (T600 4GB / qwen2.5-coder:3b)."""
+        return LOCAL_NUM_CTX
 
 
 def _read_ram_windows() -> tuple[float, float]:
@@ -97,8 +101,6 @@ def _read_ram_windows() -> tuple[float, float]:
 def _read_ram_posix() -> tuple[float, float]:
     try:
         if sys.platform == "darwin":
-            import subprocess
-
             out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True).strip()
             total = int(out) / (1024**3)
             return total, total * 0.5
@@ -124,7 +126,87 @@ def _read_ram() -> tuple[float, float]:
     return _read_ram_posix()
 
 
-def _classify_tier(cpu_cores: int, ram_gb: float, ram_available_gb: float) -> Tier:
+def _read_vram_gb() -> float | None:
+    """Минимальный объём видеопамяти NVIDIA в гигабайтах, если nvidia-smi доступен."""
+    kwargs: dict = {
+        "timeout": 2,
+        "text": True,
+        "stderr": subprocess.DEVNULL,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            **kwargs,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    values: list[float] = []
+    for line in out.splitlines():
+        token = (line or "").strip().split()[0] if line.strip() else ""
+        try:
+            values.append(float(token))
+        except ValueError:
+            continue
+    if not values:
+        return None
+    return round(min(values) / 1024.0, 2)
+
+
+def _read_video_adapter_names() -> tuple[str, ...]:
+    if sys.platform != "win32":
+        return ()
+    kwargs: dict = {
+        "timeout": 4,
+        "text": True,
+        "stderr": subprocess.DEVNULL,
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    }
+    try:
+        out = subprocess.check_output(
+            ["wmic", "path", "win32_VideoController", "get", "Name"],
+            **kwargs,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    names: list[str] = []
+    for line in out.splitlines():
+        token = (line or "").strip()
+        if not token or token.lower() == "name":
+            continue
+        names.append(token)
+    return tuple(names)
+
+
+@lru_cache(maxsize=1)
+def list_video_adapter_names() -> tuple[str, ...]:
+    return _read_video_adapter_names()
+
+
+def nvidia_gpu_present() -> bool:
+    if _read_vram_gb() is not None:
+        return True
+    return any("nvidia" in name.lower() for name in list_video_adapter_names())
+
+
+def intel_igpu_present() -> bool:
+    return any("intel" in name.lower() for name in list_video_adapter_names())
+
+
+def is_hybrid_intel_nvidia() -> bool:
+    """Intel UHD/Iris + NVIDIA: Ollama Vulkan часто сажает модель на Intel."""
+    return nvidia_gpu_present() and intel_igpu_present()
+
+
+def _classify_tier(
+    cpu_cores: int,
+    ram_gb: float,
+    ram_available_gb: float,
+    vram_gb: float | None = None,
+) -> Tier:
+    if vram_gb is not None and vram_gb <= LOW_VRAM_GB:
+        return "low"
     if ram_gb < 8 or cpu_cores <= 2 or ram_available_gb < 2:
         return "low"
     if ram_gb >= 16 and cpu_cores >= 8 and ram_available_gb >= 6:
@@ -138,7 +220,8 @@ def _classify_tier(cpu_cores: int, ram_gb: float, ram_available_gb: float) -> Ti
 def detect_device_profile() -> DeviceProfile:
     cpu_cores = max(1, os.cpu_count() or 4)
     ram_gb, ram_available_gb = _read_ram()
-    tier = _classify_tier(cpu_cores, ram_gb, ram_available_gb)
+    vram_gb = _read_vram_gb()
+    tier = _classify_tier(cpu_cores, ram_gb, ram_available_gb, vram_gb)
     from core.workload_limits_service import resolve_workload_limits
 
     limits = resolve_workload_limits(None, tier=tier)
@@ -151,6 +234,7 @@ def detect_device_profile() -> DeviceProfile:
         platform=platform.system(),
         machine=platform.machine(),
         recommended_limits=limits,
+        vram_gb=vram_gb,
     )
 
 
@@ -167,11 +251,12 @@ def profile_to_dict(app_root: Path | None = None) -> dict:
 
     profile = detect_device_profile()
     workload = get_workload_settings(app_root, tier=profile.tier)
-    return {
+    payload = {
         "tier": profile.tier,
         "cpu_cores": profile.cpu_cores,
         "ram_gb": profile.ram_gb,
         "ram_available_gb": profile.ram_available_gb,
+        "vram_gb": profile.vram_gb,
         "platform": profile.platform,
         "machine": profile.machine,
         "limits": workload["limits"],
@@ -179,3 +264,12 @@ def profile_to_dict(app_root: Path | None = None) -> dict:
         "summary": profile.summary_ru(),
         "limits_summary": workload_limits_summary_ru(workload),
     }
+    from core.gpu_preference import gpu_snapshot
+
+    payload.update(gpu_snapshot())
+    from core.ollama_lifecycle import is_using_desktop_ollama
+    from core.web_access import web_access_snapshot
+
+    payload["ollama_using_desktop"] = is_using_desktop_ollama()
+    payload["web_access"] = web_access_snapshot()
+    return payload

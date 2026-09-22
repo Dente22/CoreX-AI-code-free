@@ -7,21 +7,33 @@ from core.ai_provider_catalog import (
     get_preset,
     list_presets,
     list_preset_dicts,
+    recommend_model_tier,
+    recommended_provider_id,
     validate_provider_id,
 )
 
 
 @pytest.mark.unit
 class TestAiProviderCatalog:
-    def test_has_three_presets(self):
+    def test_has_five_presets(self):
         presets = list_presets()
-        assert len(presets) == 3
+        assert len(presets) == 5
+        ids = {preset.id for preset in presets}
+        assert ids == {
+            "ollama-qwen",
+            "ollama-lite",
+            "ollama-qwen-7b",
+            "ollama-claude",
+            "ollama-qwen-14b",
+        }
 
     def test_default_is_ollama_qwen(self):
         assert DEFAULT_PROVIDER_ID == "ollama-qwen"
         preset = get_preset(DEFAULT_PROVIDER_ID)
         assert preset.is_default is True
         assert preset.provider_type == "ollama"
+        assert preset.model_name == "qwen2.5-coder:3b"
+        assert preset.tier == "low"
 
     def test_all_presets_have_required_fields(self):
         for preset in list_presets():
@@ -32,6 +44,14 @@ class TestAiProviderCatalog:
             assert preset.base_url.startswith("http")
             assert preset.pull_command.startswith("ollama pull")
             assert preset.min_ram_gb > 0
+            assert preset.min_vram_gb > 0
+            assert preset.size_gb > 0
+
+    def test_coder_line_matches_hardware_tabs(self):
+        assert get_preset("ollama-qwen").tier == "low"
+        assert get_preset("ollama-qwen-7b").tier == "medium"
+        assert get_preset("ollama-qwen-14b").tier == "high"
+        assert get_preset("ollama-claude").tier == "medium"
 
     def test_ollama_claude_preset_exists(self):
         preset = get_preset("ollama-claude")
@@ -46,19 +66,33 @@ class TestAiProviderCatalog:
         assert validate_provider_id("ollama-qwen") is True
         assert validate_provider_id("ollama-lite") is True
         assert validate_provider_id("ollama-claude") is True
+        assert validate_provider_id("ollama-qwen-7b") is True
+        assert validate_provider_id("ollama-qwen-14b") is True
 
     def test_validate_unknown_id(self):
         assert validate_provider_id("unknown-provider") is False
 
     def test_list_preset_dicts_serializable(self):
         items = list_preset_dicts()
-        assert len(items) == 3
+        assert len(items) == 5
         for item in items:
             assert "id" in item
             assert "name" in item
             assert "is_default" in item
+            assert "min_vram_gb" in item
             assert item["id"] != ""
 
     def test_get_unknown_preset_raises(self):
         with pytest.raises(KeyError):
             get_preset("does-not-exist")
+
+    def test_recommend_tier_by_vram(self):
+        assert recommend_model_tier(vram_gb=4.0, ram_gb=16) == "low"
+        assert recommend_model_tier(vram_gb=8.0, ram_gb=32) == "medium"
+        assert recommend_model_tier(vram_gb=12.0, ram_gb=32) == "high"
+
+    def test_recommend_without_vram_stays_conservative(self):
+        assert recommend_model_tier(vram_gb=None, ram_gb=16) == "low"
+        assert recommend_model_tier(vram_gb=None, ram_gb=32) == "medium"
+        assert recommended_provider_id(4.0, 16) == "ollama-qwen"
+        assert recommended_provider_id(8.0, 32) == "ollama-qwen-7b"

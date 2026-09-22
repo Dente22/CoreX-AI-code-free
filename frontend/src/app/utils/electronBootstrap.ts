@@ -5,6 +5,11 @@ export {
   shouldEnableAutoUpdates,
   resolveBackendHealthTimeoutMs,
   shouldOpenWindowBeforeBackend,
+  isOllamaLaunchSkippable,
+  CHROME_USER_AGENT,
+  isHttpUrl,
+  shouldOpenInSystemBrowser,
+  shouldOpenAuthInSystemBrowser,
   COREX_OLLAMA_PORT,
   parseWindowsListeningPid,
   killPidTreeSync,
@@ -13,6 +18,7 @@ export {
   collectDescendantPids,
   parseWmicProcessRows,
   killZombieLlamaServersSync,
+  preferIntegratedGpuForUi,
 } from '../../../electronBootstrap.cjs';
 
 export type {

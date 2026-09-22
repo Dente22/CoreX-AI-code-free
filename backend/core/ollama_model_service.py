@@ -110,7 +110,9 @@ def merge_ollama_env(base: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def resolve_ollama_base_url() -> str:
-    return COREX_OLLAMA_BASE_URL
+    from core.ollama_lifecycle import resolve_ollama_base_url as live_url
+
+    return live_url()
 
 
 def model_name_matches(installed_name: str, target_name: str) -> bool:
@@ -139,14 +141,9 @@ def _parse_ollama_list_output(output: str) -> list[dict[str, str]]:
 
 
 async def _is_server_running(base_url: str | None = None) -> bool:
-    root = (base_url or resolve_ollama_base_url()).rstrip("/")
-    try:
-        timeout = aiohttp.ClientTimeout(total=3)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(root) as response:
-                return response.status < 500
-    except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
-        return False
+    from core.ollama_lifecycle import _is_server_running as live_check
+
+    return await live_check(base_url)
 
 
 async def prepare_pull(model_name: str) -> dict[str, Any]:
@@ -220,6 +217,9 @@ async def ensure_corex_ollama_running() -> bool:
 
 
 async def list_installed_models(*, start_if_down: bool = False) -> dict[str, Any]:
+    from core.ollama_lifecycle import attach_if_already_running
+
+    await attach_if_already_running()
     if await _is_server_running():
         note_ollama_activity()
         root = resolve_ollama_base_url().rstrip("/")
@@ -287,8 +287,11 @@ def catalog_install_status(
     *,
     desktop_installed: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
+    from core.ollama_lifecycle import is_using_desktop_ollama
+
     corex_names = _installed_names(installed)
     desktop_names = _installed_names(desktop_installed or [])
+    using_desktop = is_using_desktop_ollama()
     rows: list[dict[str, Any]] = []
     for preset in list_preset_dicts():
         model_name = preset["model_name"]
@@ -298,12 +301,15 @@ def catalog_install_status(
         installed_in_desktop = any(
             model_name_matches(name, model_name) for name in desktop_names
         )
+        ready = installed_in_corex or installed_in_desktop
         row = {
             **preset,
-            "installed": installed_in_corex or installed_in_desktop,
+            "installed": ready,
             "installed_in_corex": installed_in_corex,
             "installed_in_desktop": installed_in_desktop,
-            "needs_import": installed_in_desktop and not installed_in_corex,
+            "needs_import": (
+                installed_in_desktop and not installed_in_corex and not using_desktop
+            ),
         }
         if has_direct_source(preset["id"]):
             row["pull_command"] = direct_download_curl_command(preset["id"])

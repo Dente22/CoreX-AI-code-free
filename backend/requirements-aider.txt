@@ -1,0 +1,3 @@
+# Aider sidecar: Python 3.10–3.12 only (не ставится в основной venv на 3.14).
+# Создаётся в корне: .venv-aider через scripts/ensure_aider_venv.bat
+aider-chat>=0.75.0,<0.87

@@ -66,7 +66,7 @@ class TestAiProviderApi:
         data = await response.json()
         assert data["success"] is True
         assert data["selected_id"] == "ollama-qwen"
-        assert len(data["providers"]) == 3
+        assert len(data["providers"]) == 5
 
     async def test_set_provider(self, api_client):
         response = await api_client.post(

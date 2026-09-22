@@ -46,6 +46,51 @@ export async function runCommand(command: string, cwd?: string): Promise<Termina
   return parseTerminalResponse(response);
 }
 
+export interface TerminalSessionSnapshot extends TerminalRunResult {
+  running?: boolean;
+}
+
+export function isInteractiveRunnable(path: string): boolean {
+  const lower = path.toLowerCase();
+  if (!isRunnableFile(path)) {
+    return false;
+  }
+  return !(lower.endsWith('.html') || lower.endsWith('.htm') || lower.endsWith('.css'));
+}
+
+export async function startTerminalSession(payload: {
+  path?: string;
+  command?: string;
+  cwd?: string;
+}): Promise<TerminalSessionSnapshot> {
+  const response = await fetchApi('/api/terminal/session/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return parseTerminalResponse(response);
+}
+
+export async function pollTerminalSession(path?: string): Promise<TerminalSessionSnapshot> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : '';
+  const response = await fetchApi(`/api/terminal/session${query}`);
+  return parseTerminalResponse(response);
+}
+
+export async function sendTerminalStdin(text: string): Promise<TerminalRunResult> {
+  const response = await fetchApi('/api/terminal/session/stdin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  return parseTerminalResponse(response);
+}
+
+export async function killTerminalSession(): Promise<TerminalRunResult> {
+  const response = await fetchApi('/api/terminal/session/kill', { method: 'POST' });
+  return parseTerminalResponse(response);
+}
+
 export function isRunnableFile(path: string): boolean {
   const lower = path.toLowerCase();
   return (

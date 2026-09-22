@@ -247,7 +247,7 @@ export function AddPipelineModal({
           {error ? <p className="text-xs text-red-400">{error}</p> : null}
 
           <p className="text-[10px] text-[#6b7280]">
-            Команда сохранится в chat/pipelines/ и появится в списке только если все этапы ссылаются
+            Команда сохранится в проекте и появится в списке только если все этапы ссылаются
             на существующие скилы.
           </p>
 

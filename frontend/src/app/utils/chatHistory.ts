@@ -18,11 +18,13 @@ function toChatMessage(raw: Record<string, unknown>, index: number): ChatMessage
   if (!content) {
     return null;
   }
+  const model = typeof raw.model === 'string' ? raw.model.trim() : '';
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : `saved-${index}-${Date.now()}`,
     role,
     content,
     timestamp: typeof raw.timestamp === 'string' ? raw.timestamp : 'сохранено',
+    ...(model ? { model } : {}),
   };
 }
 
@@ -42,6 +44,7 @@ export async function saveChatMessages(messages: ChatMessage[]): Promise<void> {
     role: m.role,
     content: m.content,
     timestamp: m.timestamp,
+    ...(m.model ? { model: m.model } : {}),
   }));
   await fetchApi('/api/chat/messages', {
     method: 'POST',
@@ -75,6 +78,7 @@ export async function archiveChatSession(messages: ChatMessage[]): Promise<ChatS
     role: m.role,
     content: m.content,
     timestamp: m.timestamp,
+    ...(m.model ? { model: m.model } : {}),
   }));
   const response = await fetchApi('/api/chat/archive', {
     method: 'POST',

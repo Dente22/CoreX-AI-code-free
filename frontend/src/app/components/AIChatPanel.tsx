@@ -1,14 +1,16 @@
 import { Sparkles, Plus, Copy, Check, User, Bot, X, RefreshCw, ChevronDown, ChevronUp, Settings2, History, MessageSquare } from 'lucide-react';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { ThinkingMessage } from './ThinkingModal';
+import { ChatFileGroup } from './ChatFileGroup';
 import { ChatInput } from './ChatInput';
+import { groupChatMessages } from '../utils/chatFileStatus';
 import { AddPersonaModal } from './AddPersonaModal';
 import { AddAgentModal } from './AddAgentModal';
 import { AddPipelineModal } from './AddPipelineModal';
 import { SelectionPickerModal } from './SelectionPickerModal';
 import { SelectionBar } from './SelectionBar';
 import { WorkModeSelector } from './WorkModeSelector';
-import { AIModelSelector } from './AIModelSelector';
+import { CodingEngineSelector } from './CodingEngineSelector';
 import { AIControlSection } from './AIControlSection';
 import { useChat } from '../contexts/ChatContext';
 import { ErrorActionText } from './ErrorActionText';
@@ -22,6 +24,8 @@ import {
 } from '../utils/pickerHelpers';
 import { formatSessionDate } from '../utils/chatHistory';
 import type { WorkMode } from '../utils/pipelines';
+import { languageLabel } from '../utils/codingLanguage';
+import { codingEngineLabel } from '../utils/codingEngine';
 
 const MODE_LABELS: Record<WorkMode, string> = {
   single: 'Скил',
@@ -39,6 +43,7 @@ interface AIChatPanelProps {
   onOpenFile?: (path: string, name: string) => void;
   onNotification?: (text: string) => void;
   onFileChanged?: (path: string, message: string) => void;
+  variant?: 'sidebar' | 'full';
 }
 
 const CONTROLS_OPEN_KEY = 'corex-ai-controls-open';
@@ -69,6 +74,7 @@ export function AIChatPanel({
   onOpenFile,
   onNotification,
   onFileChanged,
+  variant = 'sidebar',
 }: AIChatPanelProps) {
   const {
     messages,
@@ -92,6 +98,11 @@ export function AIChatPanel({
     pipelines,
     selectedPipelineId,
     setSelectedPipelineId,
+    codingLanguage,
+    codingLanguages,
+    setCodingLanguage,
+    codingEngine,
+    setCodingEngine,
     chatSessions,
     openChatSession,
     startNewChat,
@@ -99,7 +110,7 @@ export function AIChatPanel({
   } = useChat();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState<'skill' | 'agent' | 'team' | null>(null);
+  const [pickerOpen, setPickerOpen] = useState<'skill' | 'agent' | 'team' | 'language' | null>(null);
   const [showAddPersona, setShowAddPersona] = useState(false);
   const [showAddAgent, setShowAddAgent] = useState(false);
   const [showAddPipeline, setShowAddPipeline] = useState(false);
@@ -115,6 +126,7 @@ export function AIChatPanel({
   const safeMessages = messages ?? [];
   const safeChatSessions = chatSessions ?? [];
   const safeThoughts = thoughts ?? [];
+  const chatItems = useMemo(() => groupChatMessages(safeMessages), [safeMessages]);
 
   const selectedSkill = personas.find((p) => p.id === selectedPersonaId);
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
@@ -133,6 +145,15 @@ export function AIChatPanel({
   const agentPickerFilters = useMemo(() => buildAgentFilters(agents), [agents]);
   const teamPickerItems = useMemo(() => teamItemsFromPipelines(pipelines), [pipelines]);
   const teamPickerFilters = useMemo(() => buildTeamFilters(pipelines), [pipelines]);
+  const languagePickerItems = useMemo(
+    () =>
+      codingLanguages.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+      })),
+    [codingLanguages],
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -157,8 +178,10 @@ export function AIChatPanel({
           : 'bg-[var(--corex-text-dim)]';
 
   const controlsSummary = [
+    codingEngineLabel(codingEngine),
     MODE_LABELS[workMode],
     activeSelectionName || 'не выбрано',
+    languageLabel(codingLanguage),
   ].join(' · ');
 
   const handleAddPersona = async (name: string, prompt: string, category: string) => {
@@ -318,7 +341,7 @@ export function AIChatPanel({
       ) : null}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-3 space-y-4">
+      <div className={`flex-1 overflow-y-auto min-h-0 py-3 ${variant === 'full' ? 'px-5' : 'px-3'}`}>
         {safeMessages.length === 0 && !isThinking ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-center px-4">
             <div className="w-10 h-10 rounded-xl bg-[rgba(0,210,255,0.08)] border border-[var(--corex-border)] flex items-center justify-center mb-3">
@@ -329,56 +352,76 @@ export function AIChatPanel({
               Настройте модель и режим ниже
             </p>
           </div>
-        ) : null}
+        ) : (
+          <div className={`corex-chat-thread ${variant === 'full' ? 'corex-chat-thread--full' : ''}`}>
+            {chatItems.map((item) => {
+              if (item.kind === 'file_group') {
+                return (
+                  <ChatFileGroup
+                    key={item.id}
+                    files={item.files}
+                    onOpenFile={onOpenFile}
+                  />
+                );
+              }
 
-        {safeMessages.map((message) => {
-          const role = message?.role ?? 'assistant';
-          const content = message?.content ?? '';
-          const id = message?.id ?? `msg-${Math.random()}`;
-          const isUser = role === 'user';
+              const message = item.message;
+              const role = message?.role ?? 'assistant';
+              const content = message?.content ?? '';
+              const id = message?.id ?? `msg-${Math.random()}`;
+              const isUser = role === 'user';
+              const modelLabel = !isUser && message?.model
+                ? message.model.replace(/^.*\//, '').replace(/:free$/i, '')
+                : '';
 
-          return (
-            <div key={id} className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                isUser ? 'corex-avatar-user' : 'corex-avatar-ai'
-              }`}>
-                {isUser ? <User className="w-3.5 h-3.5 text-white" /> : <Bot className="w-3.5 h-3.5" />}
-              </div>
-              <div className={`flex-1 min-w-0 ${isUser ? 'flex flex-col items-end' : ''}`}>
-                <div className={`text-sm whitespace-pre-wrap break-words ${
-                  isUser ? 'corex-chat-bubble-user' : 'corex-chat-bubble-ai'
-                }`}>
-                  {role === 'assistant' ? (
-                    <ErrorActionText
-                      text={content}
-                      onFixWithAI={onSend}
-                      onOpenFile={onOpenFile}
-                      onRemediated={(path, msg) => {
-                        onNotification?.(msg);
-                        onFileChanged?.(path, msg);
-                      }}
-                    />
-                  ) : (
-                    content
-                  )}
+              return (
+                <div key={id} className={`corex-chat-row ${isUser ? 'corex-chat-row--user' : 'corex-chat-row--ai'}`}>
+                  <div className={`corex-chat-avatar ${isUser ? 'corex-avatar-user' : 'corex-avatar-ai'}`}>
+                    {isUser ? <User className="text-white" /> : <Bot />}
+                  </div>
+                  <div className={`corex-chat-body ${isUser ? 'corex-chat-body--user' : 'corex-chat-body--ai'}`}>
+                    <div className={`text-sm whitespace-pre-wrap break-words ${
+                      isUser ? 'corex-chat-bubble-user' : 'corex-chat-ai-text'
+                    }`}>
+                      {role === 'assistant' ? (
+                        <ErrorActionText
+                          text={content}
+                          onFixWithAI={onSend}
+                          onOpenFile={onOpenFile}
+                          onRemediated={(path, msg) => {
+                            onNotification?.(msg);
+                            onFileChanged?.(path, msg);
+                          }}
+                        />
+                      ) : (
+                        content
+                      )}
+                    </div>
+                    {role === 'assistant' && content ? (
+                      <div className="corex-chat-meta">
+                        {modelLabel ? (
+                          <span className="text-[10px] text-[var(--corex-text-dim)]">{modelLabel}</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(content, id)}
+                          className="corex-chat-copy"
+                        >
+                          {copiedId === id ? <><Check className="w-3 h-3" />Скопировано</> : <><Copy className="w-3 h-3" />Копировать</>}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-                {role === 'assistant' && content ? (
-                  <button
-                    onClick={() => handleCopy(content, id)}
-                    className="flex items-center gap-1 mt-1 px-1.5 py-0.5 text-[10px] text-[var(--corex-text-dim)] hover:text-[var(--corex-text)] rounded transition-colors"
-                  >
-                    {copiedId === id ? <><Check className="w-3 h-3" />Скопировано</> : <><Copy className="w-3 h-3" />Копировать</>}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
 
-        {(isThinking || safeThoughts.length > 0) && (
-          <ThinkingMessage thoughts={safeThoughts} isThinking={isThinking} />
+            {(isThinking || safeThoughts.length > 0) && (
+              <ThinkingMessage thoughts={safeThoughts} isThinking={isThinking} />
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Footer: controls + input */}
@@ -398,7 +441,7 @@ export function AIChatPanel({
           <Settings2 className="w-3.5 h-3.5 text-[var(--corex-text-dim)] flex-shrink-0" />
           {controlsOpen ? (
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--corex-text-dim)]">
-              Настройки AI
+              Оркестрация
             </span>
           ) : (
             <span className="corex-controls-summary">{controlsSummary}</span>
@@ -412,12 +455,26 @@ export function AIChatPanel({
 
         {controlsOpen ? (
           <div className="px-3 pb-2 space-y-2 max-h-[42vh] overflow-y-auto">
-            <AIModelSelector disabled={isThinking} onNotification={onNotification} />
-
-            <AIControlSection title="Оркестрация" hint="скил · агент · команда">
+            <AIControlSection title="Оркестрация" hint="движок · скил · агент · команда">
+              <CodingEngineSelector
+                codingEngine={codingEngine}
+                onCodingEngineChange={setCodingEngine}
+                disabled={isThinking}
+              />
               <WorkModeSelector
                 workMode={workMode}
                 onWorkModeChange={setWorkMode}
+                disabled={isThinking}
+              />
+
+              <SelectionBar
+                label="Язык"
+                selectedName={languageLabel(codingLanguage)}
+                selectedDescription={
+                  codingLanguages.find((item) => item.id === codingLanguage)?.description
+                }
+                placeholder="Авто"
+                onOpenPicker={() => setPickerOpen('language')}
                 disabled={isThinking}
               />
 
@@ -531,6 +588,15 @@ export function AIChatPanel({
           filters={teamPickerFilters}
           onClose={() => setPickerOpen(null)}
           onSelect={setSelectedPipelineId}
+        />
+        <SelectionPickerModal
+          open={pickerOpen === 'language'}
+          title="Язык программирования"
+          items={languagePickerItems}
+          selectedId={codingLanguage}
+          filters={[]}
+          onClose={() => setPickerOpen(null)}
+          onSelect={(id) => setCodingLanguage(id as typeof codingLanguage)}
         />
         <AddPersonaModal
           open={showAddPersona}

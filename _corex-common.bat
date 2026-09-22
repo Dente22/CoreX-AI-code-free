@@ -3,6 +3,7 @@ REM CoreX — общие шаги запуска/сборки (подключа�
 
 if /i "%~1"==":EnsureRoot" goto EnsureRoot
 if /i "%~1"==":EnsureVenv" goto EnsureVenv
+if /i "%~1"==":EnsureAider" goto EnsureAider
 if /i "%~1"==":EnsureFrontendDeps" goto EnsureFrontendDeps
 if /i "%~1"==":SyncBranding" goto SyncBranding
 if /i "%~1"==":WarmupOllama" goto WarmupOllama
@@ -71,6 +72,23 @@ if errorlevel 1 (
 )
 
 echo [CoreX] Python: %COREX_PYTHON%
+exit /b 0
+
+:EnsureAider
+if not defined COREX_ROOT (
+  call "%~dp0_corex-common.bat" :EnsureRoot
+)
+if exist "%COREX_ROOT%\.venv-aider\Scripts\aider.exe" (
+  echo [CoreX] Aider: %COREX_ROOT%\.venv-aider\Scripts\aider.exe
+  exit /b 0
+)
+echo [CoreX] Aider sidecar не найден — ставлю .venv-aider ^(Python 3.11/3.12^)...
+call "%COREX_ROOT%\scripts\ensure_aider_venv.bat"
+if errorlevel 1 (
+  echo [CoreX] Aider не установлен. Режим Aider в чате пока недоступен.
+  echo [CoreX] Позже: scripts\ensure_aider_venv.bat
+  exit /b 0
+)
 exit /b 0
 
 :EnsureFrontendDeps

@@ -17,7 +17,13 @@ if TYPE_CHECKING:
 
 _ready_cache: dict[str, Any] | None = None
 
-_FALLBACK_ORDER = ("ollama-lite", "ollama-qwen", "ollama-claude")
+_FALLBACK_ORDER = (
+    "ollama-lite",
+    "ollama-qwen",
+    "ollama-qwen-7b",
+    "ollama-claude",
+    "ollama-qwen-14b",
+)
 
 
 def clear_startup_readiness_cache() -> None:
@@ -107,19 +113,34 @@ async def evaluate_startup_readiness(orchestrator: CoreXOrchestrator) -> dict[st
         _ready_cache = payload
         return payload
 
-    from core.ollama_lifecycle import ensure_ollama_serve_running
+    from core.ollama_lifecycle import (
+        attach_if_already_running,
+        bind_client_to_live_endpoint,
+        ensure_ollama_serve_running,
+        should_skip_desktop_ollama,
+    )
 
-    if not await ensure_ollama_serve_running():
-        err = str(getattr(orchestrator.ollama, "last_error", "") or "").strip()
-        return {
-            "ready": False,
-            "phase": "ollama_server",
-            "message": err or "Запуск Ollama…",
-            "mode": mode,
-            "model": active.model_name or "",
-        }
+    # Splash must not spawn a second Ollama — except on Intel+NVIDIA hybrid,
+    # where the desktop app often pins Vulkan to Intel UHD and llama-server dies.
+    if not await attach_if_already_running():
+        if should_skip_desktop_ollama() and await ensure_ollama_serve_running():
+            pass
+        else:
+            return {
+                "ready": False,
+                "phase": "ollama_server",
+                "skippable": True,
+                "message": (
+                    "Ollama не запущена. Откройте приложение Ollama "
+                    "или продолжите без локальной модели."
+                ),
+                "mode": mode,
+                "model": active.model_name or "",
+            }
 
-    base_url = str(getattr(active.client, "root_url", "") or "http://127.0.0.1:11435")
+    # Client was built against 11435 before attach; retarget to the live server.
+    base_url = bind_client_to_live_endpoint(getattr(active, "client", None))
+    bind_client_to_live_endpoint(getattr(orchestrator, "ollama", None))
     model_name = str(active.model_name or "").strip()
     provider_id = str(active.provider_id or "").strip()
 

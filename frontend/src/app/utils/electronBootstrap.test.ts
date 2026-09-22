@@ -6,6 +6,11 @@ import {
   shouldEnableAutoUpdates,
   resolveBackendHealthTimeoutMs,
   shouldOpenWindowBeforeBackend,
+  isOllamaLaunchSkippable,
+  isHttpUrl,
+  shouldOpenInSystemBrowser,
+  shouldOpenAuthInSystemBrowser,
+  preferIntegratedGpuForUi,
 } from './electronBootstrap';
 
 describe('resolveProjectRoot', () => {
@@ -199,5 +204,97 @@ describe('resolveBackendHealthTimeoutMs', () => {
 describe('shouldOpenWindowBeforeBackend', () => {
   it('opens the UI first so startup feels instant', () => {
     expect(shouldOpenWindowBeforeBackend()).toBe(true);
+  });
+});
+
+describe('isOllamaLaunchSkippable', () => {
+  it('treats a missing Ollama server as a non-blocking choice', () => {
+    expect(
+      isOllamaLaunchSkippable({
+        ready: false,
+        phase: 'ollama_server',
+        skippable: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('skips even without the skippable flag when phase is ollama_server', () => {
+    expect(isOllamaLaunchSkippable({ ready: false, phase: 'ollama_server' })).toBe(true);
+  });
+
+  it('does not skip a ready system', () => {
+    expect(isOllamaLaunchSkippable({ ready: true, phase: 'ready' })).toBe(false);
+  });
+
+  it('does not skip other blocked phases', () => {
+    expect(isOllamaLaunchSkippable({ ready: false, phase: 'online_config' })).toBe(false);
+  });
+});
+
+describe('isHttpUrl', () => {
+  it('accepts http and https', () => {
+    expect(isHttpUrl('https://openrouter.ai/keys')).toBe(true);
+    expect(isHttpUrl('http://127.0.0.1:3000')).toBe(true);
+  });
+
+  it('rejects non-web URLs', () => {
+    expect(isHttpUrl('file:///C:/tmp')).toBe(false);
+    expect(isHttpUrl('javascript:alert(1)')).toBe(false);
+    expect(isHttpUrl('not a url')).toBe(false);
+  });
+});
+
+describe('shouldOpenInSystemBrowser', () => {
+  it('uses the OS browser on Ctrl or Cmd click', () => {
+    expect(shouldOpenInSystemBrowser({ ctrlKey: true })).toBe(true);
+    expect(shouldOpenInSystemBrowser({ metaKey: true })).toBe(true);
+  });
+
+  it('keeps a normal click inside CoreX', () => {
+    expect(shouldOpenInSystemBrowser({ ctrlKey: false })).toBe(false);
+  });
+});
+
+describe('preferIntegratedGpuForUi', () => {
+  it('keeps Chromium on the integrated GPU on Windows', () => {
+    const switches: string[] = [];
+    const spawnCalls: unknown[][] = [];
+    const result = preferIntegratedGpuForUi({
+      platform: 'win32',
+      commandLine: { appendSwitch: (name: string) => switches.push(name) },
+      execPath: 'C:\\CoreX\\electron.exe',
+      spawn: (...args: unknown[]) => {
+        spawnCalls.push(args);
+        return { unref() {} };
+      },
+    });
+    expect(result.applied).toBe(true);
+    expect(switches).toEqual(['force_low_power_gpu']);
+    expect(spawnCalls[0][0]).toBe('reg');
+    expect(spawnCalls[0][1]).toContain('GpuPreference=1;');
+    expect(spawnCalls[0][1]).toContain('C:\\CoreX\\electron.exe');
+  });
+
+  it('does nothing on non-Windows', () => {
+    const switches: string[] = [];
+    const result = preferIntegratedGpuForUi({
+      platform: 'darwin',
+      commandLine: { appendSwitch: (name: string) => switches.push(name) },
+    });
+    expect(result.applied).toBe(false);
+    expect(switches).toEqual([]);
+  });
+});
+
+describe('shouldOpenAuthInSystemBrowser', () => {
+  it('keeps OpenRouter and docs inside the in-app browser', () => {
+    expect(shouldOpenAuthInSystemBrowser('https://openrouter.ai/keys')).toBe(false);
+    expect(shouldOpenAuthInSystemBrowser('https://google.com/search?q=corex')).toBe(false);
+  });
+
+  it('sends Google sign-in to the system browser', () => {
+    expect(shouldOpenAuthInSystemBrowser('https://accounts.google.com/o/oauth2/v2/auth?client_id=x')).toBe(true);
+    expect(shouldOpenAuthInSystemBrowser('https://accounts.google.de/signin')).toBe(true);
+    expect(shouldOpenAuthInSystemBrowser('https://oauth2.googleapis.com/token')).toBe(true);
   });
 });

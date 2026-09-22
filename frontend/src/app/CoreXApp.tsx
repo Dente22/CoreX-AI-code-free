@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityBar } from './components/ActivityBar';
 import { AdminTracePanel } from './components/AdminTracePanel';
 import { FileExplorer } from './components/FileExplorer';
+import { SearchPanel } from './components/SearchPanel';
+import { GitPanel } from './components/GitPanel';
 import { EditorWorkspace } from './components/EditorWorkspace';
 import type { CodeEditorHandle } from './components/CodeEditor';
 import { Terminal, type TerminalLine } from './components/Terminal';
@@ -16,10 +18,23 @@ import { ViewSettingsProvider } from './contexts/ViewSettingsContext';
 import { MenuBar } from './components/MenuBar';
 import { AIProviderSettings } from './components/AIProviderSettings';
 import { CreateAIProjectModal } from './components/CreateAIProjectModal';
+import { CloneRepoModal } from './components/CloneRepoModal';
 import { fetchApi, initBackendConnection } from './utils/api';
 import { createProjectWithAi } from './utils/projectCreate';
 import { getLanguageFromFilename } from './utils/editorLanguage';
-import { isRunnableFile, runCommand, runFile, type TerminalRunResult } from './utils/terminal';
+import { filenameHasExtension, NO_EXTENSION_ERROR } from './utils/fileName';
+import { isInteractiveRunnable, isRunnableFile, killTerminalSession, pollTerminalSession, runFile, sendTerminalStdin, startTerminalSession, type TerminalRunResult } from './utils/terminal';
+import {
+  BROWSER_TAB_LANGUAGE,
+  BROWSER_TAB_PATH,
+  DEFAULT_BROWSER_URL,
+  isBrowserTab,
+  isExternalWebUrl,
+  isHttpUrl,
+  shouldOpenAuthInSystemBrowser,
+  shouldOpenInSystemBrowser,
+} from './utils/internalBrowser';
+import { isCorexInternalPath } from './utils/corexInternal';
 
 const LAST_PROJECT_ROOT_KEY = 'corex.lastProjectRoot';
 
@@ -37,6 +52,10 @@ declare global {
       getAppVersion?: () => Promise<string>;
       onUpdateStatus?: (callback: (status: string) => void) => () => void;
       pickInstallerUpdate?: () => Promise<{ success: boolean; reason?: string; version?: string }>;
+      openExternal?: (url: string) => Promise<{ ok?: boolean }>;
+      copyText?: (text: string) => Promise<{ ok?: boolean }>;
+      onOpenInAppBrowser?: (callback: (url: string) => void) => () => void;
+      onAuthOpenedExternally?: (callback: (url: string) => void) => () => void;
     };
   }
 }
@@ -95,10 +114,13 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
   const [activeView, setActiveView] = useState<'explorer' | 'chat' | 'search' | 'git' | 'debug' | 'extensions' | 'settings'>('explorer');
   const [openTabs, setOpenTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState('');
+  const [browserUrl, setBrowserUrl] = useState(DEFAULT_BROWSER_URL);
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
+  const [revealRequest, setRevealRequest] = useState<{ path: string; line: number; token: number } | null>(null);
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
   const [terminalExpanded, setTerminalExpanded] = useState(true);
   const [terminalRunning, setTerminalRunning] = useState(false);
+  const terminalAliveRef = useRef(false);
   const [notification, setNotification] = useState('Откройте проект или файл, чтобы начать работу.');
   const [appVersion, setAppVersion] = useState('');
   const [updateStatus, setUpdateStatus] = useState('');
@@ -107,6 +129,10 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
   const [showCreateAIProjectModal, setShowCreateAIProjectModal] = useState(false);
   const [createAIProjectError, setCreateAIProjectError] = useState('');
   const [isCreatingAIProject, setIsCreatingAIProject] = useState(false);
+  const [showCloneRepoModal, setShowCloneRepoModal] = useState(false);
+  const [cloneRepoError, setCloneRepoError] = useState('');
+  const [isCloningRepo, setIsCloningRepo] = useState(false);
+  const [cloneParentPath, setCloneParentPath] = useState('');
   const [aiProjectParentPath, setAiProjectParentPath] = useState('');
   const [showCreateFileDialog, setShowCreateFileDialog] = useState(false);
   const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
@@ -154,11 +180,87 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
     })();
   };
 
-  const handleOpenFile = (path: string, name: string) => {
+  const handleOpenBrowser = useCallback((rawUrl?: string) => {
+    if (shouldOpenAuthInSystemBrowser(rawUrl || '')) {
+      void (async () => {
+        if (window.electronAPI?.openExternal) {
+          await window.electronAPI.openExternal(String(rawUrl));
+          setNotification('Google не принимает встроенный браузер — вход открыт в системном. После входа скопируйте ключ сюда.');
+        }
+      })();
+      return;
+    }
+    const nextUrl = isHttpUrl(rawUrl || '') ? String(rawUrl) : DEFAULT_BROWSER_URL;
+    setBrowserUrl(nextUrl);
+    setActiveView('explorer');
+    setOpenTabs((prev) => {
+      const existing = prev.find((tab) => isBrowserTab(tab));
+      if (existing) {
+        setActiveTabId(existing.id);
+        return prev;
+      }
+      const nextTab: EditorTab = {
+        id: createId('tab'),
+        name: 'Браузер',
+        path: BROWSER_TAB_PATH,
+        modified: false,
+        language: BROWSER_TAB_LANGUAGE,
+      };
+      setActiveTabId(nextTab.id);
+      return [...prev, nextTab];
+    });
+    setNotification('Открыт браузер CoreX. Ctrl+клик — системный браузер.');
+  }, []);
+
+  const handleCopyBrowserUrl = useCallback(async (url: string) => {
+    const value = String(url || '').trim();
+    if (!value) {
+      return;
+    }
+    try {
+      if (window.electronAPI?.copyText) {
+        await window.electronAPI.copyText(value);
+      } else {
+        await navigator.clipboard.writeText(value);
+      }
+      setNotification('Ссылка скопирована.');
+    } catch {
+      setNotification('Не удалось скопировать ссылку.');
+    }
+  }, []);
+
+  const handleOpenSystemBrowser = useCallback(async (url: string) => {
+    const target = isHttpUrl(url) ? url : browserUrl;
+    if (!isHttpUrl(target)) {
+      return;
+    }
+    if (window.electronAPI?.openExternal) {
+      await window.electronAPI.openExternal(target);
+      setNotification('Открыто в системном браузере.');
+    }
+  }, [browserUrl]);
+
+  const handleOpenFile = (path: string, name: string, line?: number) => {
+    if (isHttpUrl(path)) {
+      handleOpenBrowser(path);
+      return;
+    }
+    if (isCorexInternalPath(path)) {
+      setNotification('Служебные данные CoreX недоступны в редакторе.');
+      return;
+    }
+    const reveal = (targetPath: string) => {
+      if (typeof line === 'number' && Number.isFinite(line) && line > 0) {
+        const request = { path: targetPath, line, token: Date.now() };
+        setRevealRequest(request);
+        window.setTimeout(() => editorRef.current?.revealLine(line), 80);
+      }
+    };
     void (async () => {
       const existingTab = openTabs.find((tab) => tab.path === path);
       if (existingTab) {
         setActiveTabId(existingTab.id);
+        reveal(path);
         setNotification(`Файл ${name} уже открыт.`);
         return;
       }
@@ -184,6 +286,7 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
         setFileContents((prev) => ({ ...prev, [path]: content }));
         setOpenTabs((prev) => [...prev, nextTab]);
         setActiveTabId(nextTab.id);
+        reveal(path);
         setNotification(`Открыт файл ${name}.`);
       } catch (error) {
         setNotification(`Ошибка сети при чтении файла: ${String(error)}`);
@@ -260,20 +363,71 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
     setTerminalLines([]);
   };
 
+  const pumpTerminalSession = useCallback(
+    async (path?: string) => {
+      terminalAliveRef.current = true;
+      while (terminalAliveRef.current) {
+        const snap = await pollTerminalSession(path);
+        if (snap.output) {
+          appendTerminalLine('output', snap.output);
+        }
+        if (snap.error && !snap.running) {
+          appendTerminalLine('error', snap.error);
+        }
+        if (!snap.running) {
+          if (snap.success) {
+            appendTerminalLine('info', `✓ Готово (код ${snap.exit_code ?? 0})`);
+          } else if (snap.exit_code !== undefined && snap.exit_code !== 0 && !snap.error) {
+            appendTerminalLine('error', `✗ Код выхода: ${snap.exit_code}`);
+          }
+          break;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 80));
+      }
+    },
+    [appendTerminalLine],
+  );
+
+  const handleStopTerminal = useCallback(async () => {
+    terminalAliveRef.current = false;
+    const result = await killTerminalSession();
+    if (result.output) {
+      appendTerminalLine('output', result.output);
+    }
+    appendTerminalLine('info', '■ Процесс остановлен');
+    setTerminalRunning(false);
+  }, [appendTerminalLine]);
+
   const handleTerminalCommand = async (command: string) => {
     if (!projectRoot) {
       setNotification('Сначала откройте папку проекта.');
       return;
     }
     setTerminalExpanded(true);
+    if (terminalRunning) {
+      appendTerminalLine('output', command);
+      const sent = await sendTerminalStdin(command);
+      if (!sent.success && sent.error) {
+        appendTerminalLine('error', sent.error);
+      }
+      return;
+    }
     setTerminalRunning(true);
     appendTerminalLine('command', `$ ${command}`);
     try {
-      const result = await runCommand(command);
-      appendRunResult(result);
+      const started = await startTerminalSession({ command });
+      if (started.command && started.command !== command) {
+        appendTerminalLine('command', `$ ${started.command}`);
+      }
+      if (!started.success) {
+        appendTerminalLine('error', started.error || 'Не удалось запустить команду');
+        return;
+      }
+      await pumpTerminalSession();
     } catch (error) {
       appendTerminalLine('error', `Ошибка: ${String(error)}`);
     } finally {
+      terminalAliveRef.current = false;
       setTerminalRunning(false);
     }
   };
@@ -294,7 +448,6 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
     }
 
     setTerminalExpanded(true);
-    setTerminalRunning(true);
     appendTerminalLine('info', `▶ Запуск ${tab.path}`);
 
     try {
@@ -307,13 +460,31 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
         }
       }
 
-      const result = await runFile(tab.path);
-      appendRunResult(result);
-      setNotification(result.success ? `Выполнено: ${tab.name}` : `Ошибка запуска: ${tab.name}`);
+      if (!isInteractiveRunnable(tab.path)) {
+        setTerminalRunning(true);
+        const result = await runFile(tab.path);
+        appendRunResult(result);
+        setNotification(result.success ? `Выполнено: ${tab.name}` : `Ошибка запуска: ${tab.name}`);
+        return;
+      }
+
+      setTerminalRunning(true);
+      const started = await startTerminalSession({ path: tab.path });
+      if (started.command) {
+        appendTerminalLine('command', `$ ${started.command}`);
+      }
+      if (!started.success) {
+        appendTerminalLine('error', started.error || 'Не удалось запустить файл');
+        setNotification(`Ошибка запуска: ${tab.name}`);
+        return;
+      }
+      setNotification(`Запущено: ${tab.name} — вводите в консоль внизу`);
+      await pumpTerminalSession(tab.path);
     } catch (error) {
       appendTerminalLine('error', `Ошибка: ${String(error)}`);
       setNotification(`Ошибка запуска: ${String(error)}`);
     } finally {
+      terminalAliveRef.current = false;
       setTerminalRunning(false);
     }
   };
@@ -364,6 +535,10 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
   const submitCreateFile = async () => {
     const name = newItemName.trim();
     if (!name) return;
+    if (!filenameHasExtension(name)) {
+      setNotification(NO_EXTENSION_ERROR);
+      return;
+    }
 
     try {
       const response = await fetchApi('/api/files/create', {
@@ -505,6 +680,61 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
   };
 
   useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) {
+        return;
+      }
+      const href = anchor.href;
+      if (!isExternalWebUrl(href, window.location.origin)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (shouldOpenInSystemBrowser(event)) {
+        void handleOpenSystemBrowser(href);
+        return;
+      }
+      handleOpenBrowser(href);
+    };
+
+    const originalOpen = window.open.bind(window);
+    window.open = ((url?: string | URL, target?: string, features?: string) => {
+      const href = typeof url === 'string' ? url : url?.toString?.() || '';
+      if (isExternalWebUrl(href, window.location.origin)) {
+        handleOpenBrowser(href);
+        return null;
+      }
+      return originalOpen(url, target, features);
+    }) as typeof window.open;
+
+    document.addEventListener('click', onClick, true);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      window.open = originalOpen;
+    };
+  }, [handleOpenBrowser, handleOpenSystemBrowser]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onOpenInAppBrowser) {
+      return;
+    }
+    return window.electronAPI.onOpenInAppBrowser((url: string) => {
+      handleOpenBrowser(url);
+    });
+  }, [handleOpenBrowser]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onAuthOpenedExternally) {
+      return;
+    }
+    return window.electronAPI.onAuthOpenedExternally(() => {
+      setNotification('Google не принимает встроенный браузер — вход открыт в системном. После входа скопируйте ключ сюда.');
+    });
+  }, []);
+
+  useEffect(() => {
     if (!window.electronAPI?.onFolderSelected) {
       return;
     }
@@ -552,6 +782,9 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
         break;
       case 'run-file':
         void handleRunFile();
+        break;
+      case 'open-browser':
+        handleOpenBrowser();
         break;
       case 'help':
       case 'помощь':
@@ -647,12 +880,34 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
   };
 
   const handleCloneRepo = () => {
-    setHasProject(true);
-    setActiveView('explorer');
-    setOpenTabs([]);
-    setActiveTabId('');
-    setFileContents({});
-    setNotification('Запущено клонирование репозитория.');
+    setCloneRepoError('');
+    setCloneParentPath(projectRoot || getSavedProjectRoot());
+    setShowCloneRepoModal(true);
+  };
+
+  const handleSubmitCloneRepo = async (payload: { url: string; parentPath: string }) => {
+    setIsCloningRepo(true);
+    setCloneRepoError('');
+    try {
+      const response = await fetchApi('/api/git/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: payload.url, parent_path: payload.parentPath }),
+      });
+      const data = await response.json();
+      if (!response.ok || data?.error || !data?.root) {
+        throw new Error(data?.error || 'Не удалось клонировать репозиторий');
+      }
+      setShowCloneRepoModal(false);
+      await openProjectAtPath(data.root);
+      await refreshFileTree();
+      setActiveView('explorer');
+      setNotification(`Репозиторий «${data.name || 'проект'}» склонирован.`);
+    } catch (error) {
+      setCloneRepoError(error instanceof Error ? error.message : 'Ошибка клонирования');
+    } finally {
+      setIsCloningRepo(false);
+    }
   };
 
   const handleRefreshConnection = () => {
@@ -689,6 +944,22 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
     />
   );
 
+  const cloneRepoModal = (
+    <CloneRepoModal
+      open={showCloneRepoModal}
+      initialParentPath={cloneParentPath}
+      onClose={() => {
+        if (!isCloningRepo) {
+          setShowCloneRepoModal(false);
+          setCloneRepoError('');
+        }
+      }}
+      onSubmit={handleSubmitCloneRepo}
+      isSubmitting={isCloningRepo}
+      error={cloneRepoError}
+    />
+  );
+
   const createFileModal = showCreateFileDialog ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="corex-surface-elevated w-full max-w-xl rounded-2xl p-6">
@@ -700,6 +971,7 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
           onChange={(e) => setNewItemName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void submitCreateFile(); }}
           className="corex-input-field mt-4 w-full"
+          placeholder="Имя файла с расширением, например snake.py"
           autoFocus
         />
         <div className="mt-5 flex justify-end gap-3">
@@ -748,6 +1020,7 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
           updateStatus={updateStatus}
         />
         {createAIProjectModal}
+        {cloneRepoModal}
       </div>
     );
   }
@@ -774,15 +1047,18 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
               </ErrorBoundary>
             )}
             {activeView === 'search' && (
-              <div className="h-full corex-sidebar-panel p-4">
-                <div className="text-[var(--corex-text)] text-xs font-semibold uppercase tracking-wider mb-4">Поиск</div>
-                <input type="text" placeholder="Поиск в файлах..." className="corex-input-field w-full text-sm" />
-              </div>
+              <ErrorBoundary>
+                <SearchPanel projectRoot={projectRoot} onOpenFile={handleOpenFile} />
+              </ErrorBoundary>
             )}
             {activeView === 'git' && (
-              <div className="h-full corex-sidebar-panel p-4">
-                <div className="text-[var(--corex-text-muted)] text-sm">Нет изменений</div>
-              </div>
+              <ErrorBoundary>
+                <GitPanel
+                  projectRoot={projectRoot}
+                  onOpenFile={handleOpenFile}
+                  onNotification={setNotification}
+                />
+              </ErrorBoundary>
             )}
             {activeView === 'debug' && (
               <div className="h-full corex-sidebar-panel p-4 text-xs text-[var(--corex-text-muted)] space-y-3">
@@ -810,6 +1086,7 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
                 {showChat ? (
                   <ErrorBoundary>
                     <AIChatPanel
+                      variant="full"
                       onSend={handleSendChat}
                       onStop={handleStopGeneration}
                       onRefresh={handleRefreshConnection}
@@ -867,9 +1144,14 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
                           const name = diagramPath.split('/').pop() ?? 'workflow.mmd';
                           handleOpenFile(diagramPath, name);
                         }}
+                        browserUrl={browserUrl}
+                        onBrowserUrlChange={setBrowserUrl}
+                        onCopyBrowserUrl={(url) => void handleCopyBrowserUrl(url)}
+                        onOpenBrowserExternal={(url) => void handleOpenSystemBrowser(url)}
                         patchHighlights={
                           selectedTab ? fileHighlights[selectedTab.path] ?? [] : []
                         }
+                        revealRequest={revealRequest}
                       />
                     </ErrorBoundary>
                   </div>
@@ -879,6 +1161,7 @@ function CoreXAppInner({ hasProject, projectRoot, setHasProject, setProjectRoot 
                     lines={terminalLines}
                     onCommand={(cmd) => void handleTerminalCommand(cmd)}
                     onClear={handleClearTerminal}
+                    onStop={() => void handleStopTerminal()}
                     isRunning={terminalRunning}
                     projectRoot={projectRoot}
                     onFixWithAI={handleSendChat}

@@ -16,6 +16,8 @@ from core.web_delivery_layers import (
 def test_is_web_site_task():
     assert is_web_site_task("сделай сайт компьютерного клуба")
     assert not is_web_site_task("напиши калькулятор на python")
+    assert not is_web_site_task("сделай сайт", coding_language="python")
+    assert is_web_site_task("сделай лендинг", coding_language="html")
 
 
 def test_infer_page_title_ignores_instruction_text():

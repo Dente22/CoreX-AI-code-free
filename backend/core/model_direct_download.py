@@ -88,6 +88,16 @@ DIRECT_MODEL_SOURCES: dict[str, DirectModelSource] = {
     ),
     "ollama-qwen": DirectModelSource(
         provider_id="ollama-qwen",
+        model_name="qwen2.5-coder:3b",
+        url=(
+            "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/"
+            "resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+        ),
+        filename="qwen2.5-coder-3b-q4_k_m.gguf",
+        size_hint=2_000_000_000,
+    ),
+    "ollama-qwen-7b": DirectModelSource(
+        provider_id="ollama-qwen-7b",
         model_name="qwen2.5-coder:7b",
         url=(
             "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/"
@@ -95,6 +105,16 @@ DIRECT_MODEL_SOURCES: dict[str, DirectModelSource] = {
         ),
         filename="qwen2.5-coder-7b-q4_k_m.gguf",
         size_hint=4_700_000_000,
+    ),
+    "ollama-qwen-14b": DirectModelSource(
+        provider_id="ollama-qwen-14b",
+        model_name="qwen2.5-coder:14b",
+        url=(
+            "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/"
+            "resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf"
+        ),
+        filename="qwen2.5-coder-14b-q4_k_m.gguf",
+        size_hint=9_000_000_000,
     ),
     "ollama-claude": DirectModelSource(
         provider_id="ollama-claude",

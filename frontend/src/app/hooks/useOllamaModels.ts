@@ -52,7 +52,7 @@ export function useOllamaModels(enabled = true) {
     const map: Record<string, boolean> = {};
     const needsImportById: Record<string, boolean> = {};
     for (const item of catalog) {
-      map[item.id] = Boolean(item.installed_in_corex ?? item.installed);
+      map[item.id] = Boolean(item.installed);
       needsImportById[item.id] = Boolean(item.needs_import);
     }
     return { ready: map, needsImport: needsImportById };

@@ -53,12 +53,8 @@ async def unload_ollama_model(model_name: str, base_url: str) -> bool:
         return False
 
 
-async def verify_model_installed(model_name: str, base_url: str) -> dict[str, Any]:
-    from core.ollama_model_service import detect_installed_models_from_disk, model_name_matches
-
-    normalized = (model_name or "").strip()
-    if not normalized:
-        return {"success": False, "installed": False, "error": "Не указано имя модели"}
+async def _model_visible_in_tags(model_name: str, base_url: str) -> dict[str, Any] | None:
+    from core.ollama_model_service import model_name_matches
 
     tags_url = f"{base_url.rstrip('/')}/api/tags"
     timeout = aiohttp.ClientTimeout(total=TAGS_TIMEOUT_SEC)
@@ -69,9 +65,10 @@ async def verify_model_installed(model_name: str, base_url: str) -> dict[str, An
                     data = await response.json()
                     for item in data.get("models") or []:
                         name = str(item.get("name") or item.get("model") or "").strip()
-                        if model_name_matches(name, normalized):
+                        if model_name_matches(name, model_name):
                             return {"success": True, "installed": True, "source": "tags"}
-                elif response.status >= 500:
+                    return None
+                if response.status >= 500:
                     return {
                         "success": False,
                         "installed": False,
@@ -83,8 +80,21 @@ async def verify_model_installed(model_name: str, base_url: str) -> dict[str, An
         return {
             "success": False,
             "installed": False,
-            "error": format_ollama_connection_error(exc, model_name=normalized),
+            "error": format_ollama_connection_error(exc, model_name=model_name),
         }
+    return None
+
+
+async def verify_model_installed(model_name: str, base_url: str) -> dict[str, Any]:
+    from core.ollama_model_service import detect_installed_models_from_disk, model_name_matches
+
+    normalized = (model_name or "").strip()
+    if not normalized:
+        return {"success": False, "installed": False, "error": "Не указано имя модели"}
+
+    tagged = await _model_visible_in_tags(normalized, base_url)
+    if tagged is not None:
+        return tagged
 
     disk_models = detect_installed_models_from_disk()
     if any(model_name_matches(str(item.get("name") or ""), normalized) for item in disk_models):
@@ -93,21 +103,38 @@ async def verify_model_installed(model_name: str, base_url: str) -> dict[str, An
             "installed": False,
             "error": (
                 f"Модель «{normalized}» есть в папке CoreX, но Ollama её не видит. "
-                "Перезапустите CoreX или скачайте модель заново кнопкой «Скачать»."
+                "Перезапустите CoreX или в Настройках нажмите «Скачать»."
             ),
         }
 
-    from core.desktop_ollama_bridge import detect_desktop_models_from_disk
+    from core.desktop_ollama_bridge import detect_desktop_models_from_disk, import_model_from_desktop
 
     desktop_models = detect_desktop_models_from_disk()
     if any(model_name_matches(str(item.get("name") or ""), normalized) for item in desktop_models):
+        imported = await asyncio.to_thread(import_model_from_desktop, normalized)
+        if imported.get("success"):
+            tagged_after = await _model_visible_in_tags(normalized, base_url)
+            if tagged_after and tagged_after.get("installed"):
+                tagged_after["imported"] = True
+                tagged_after["source"] = "desktop_import"
+                return tagged_after
+            corex_after = detect_installed_models_from_disk()
+            if any(model_name_matches(str(item.get("name") or ""), normalized) for item in corex_after):
+                return {
+                    "success": True,
+                    "installed": True,
+                    "imported": True,
+                    "source": "desktop_import_disk",
+                }
         return {
             "success": False,
             "installed": False,
-            "error": (
-                f"Модель «{normalized}» найдена в системной Ollama (ollama pull), "
-                "но не импортирована в CoreX. Откройте помощник локальных моделей "
-                "и нажмите «Импортировать»."
+            "error": str(
+                imported.get("error")
+                or (
+                    f"Модель «{normalized}» есть в системной Ollama, но не попала в CoreX. "
+                    "Откройте Настройки → Модели и нажмите «Импорт»."
+                )
             ),
         }
 
@@ -116,7 +143,7 @@ async def verify_model_installed(model_name: str, base_url: str) -> dict[str, An
         "installed": False,
         "error": (
             f"Модель «{normalized}» не скачана. "
-            "Откройте помощник локальных моделей и нажмите «Скачать»."
+            "Откройте Настройки → Модели и нажмите «Скачать»."
         ),
     }
 
@@ -144,7 +171,7 @@ async def warmup_ollama_model(model_name: str, base_url: str) -> dict[str, Any]:
                         "success": False,
                         "error": (
                             f"Модель «{normalized}» не установлена. "
-                            "Скачайте её кнопкой «Скачать» в помощнике локальных моделей."
+                            "Скачайте её в Настройках → Модели кнопкой «Скачать»."
                         ),
                     }
                 if response.status != 200:
@@ -180,8 +207,8 @@ async def activate_ollama_model(
             return {
                 "success": False,
                 "error": (
-                    "Ollama не запущена на 127.0.0.1:11435. "
-                    "Отправьте сообщение ещё раз — CoreX перезапустит сервер."
+                    f"Ollama не отвечает на {base_url.rstrip('/')}. "
+                    "Отправьте сообщение ещё раз — CoreX переподключится."
                 ),
             }
 

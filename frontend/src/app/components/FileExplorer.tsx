@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, ChevronDown, Folder, FileCode, FolderOpen, FolderPlus, FilePlus, Check, X } from 'lucide-react';
 import { useFileTree, type FileNode } from '../contexts/FileTreeContext';
 import { fetchApi } from '../utils/api';
+import { isCorexInternalPath } from '../utils/corexInternal';
+import { filenameHasExtension, NO_EXTENSION_ERROR } from '../utils/fileName';
 
 interface EditorTab {
   id: string;
@@ -33,7 +35,13 @@ const EXCLUDED_ENTRIES = new Set([
 
 function filterTreeNodes(nodes: FileNode[]): FileNode[] {
   return nodes
-    .filter((node) => node?.name && !EXCLUDED_ENTRIES.has(node.name) && !node.name.startsWith('.'))
+    .filter(
+      (node) =>
+        node?.name &&
+        !EXCLUDED_ENTRIES.has(node.name) &&
+        !node.name.startsWith('.') &&
+        !isCorexInternalPath(node.path),
+    )
     .map((node) =>
       node.type === 'folder' && node.children
         ? { ...node, children: filterTreeNodes(node.children) }
@@ -136,6 +144,14 @@ export function FileExplorer({
     const targetPath = buildTargetPath(trimmed);
     if (!targetPath) {
       onNotification('Неверное имя.');
+      return;
+    }
+    if (isCorexInternalPath(targetPath)) {
+      onNotification('Это имя зарезервировано системой.');
+      return;
+    }
+    if (createState.type === 'file' && !filenameHasExtension(targetPath)) {
+      onNotification(NO_EXTENSION_ERROR);
       return;
     }
 

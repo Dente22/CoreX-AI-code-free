@@ -98,7 +98,7 @@ export function MenuBar({ onMenuAction, onFileOpen }: MenuBarProps) {
                   <input
                     type="checkbox"
                     checked={terminalVisio}
-                    onChange={(e) => setTerminalVisio(e.target.checked)}
+                    onChange={(e) => setTerminalVisio(e.currentTarget.checked)}
                     className="mt-0.5 accent-indigo-500"
                   />
                   <span>
@@ -108,6 +108,10 @@ export function MenuBar({ onMenuAction, onFileOpen }: MenuBarProps) {
                     </span>
                   </span>
                 </label>
+                {divider}
+                <button type="button" className={dropdownItem} onClick={() => { onMenuAction('open-browser'); setOpenMenu(null); }}>
+                  Браузер CoreX
+                </button>
               </div>
             )}
 

@@ -3,7 +3,10 @@ import { Code2, GitBranch } from 'lucide-react';
 import { CodeEditor, type CodeEditorHandle } from './CodeEditor';
 import { VisioPanel } from './VisioPanel';
 import { EditorTabsBar } from './EditorTabsBar';
+import { BrowserPanel } from './BrowserPanel';
+import ErrorBoundary from './ErrorBoundary';
 import type { FilePatchHighlight } from '../types/editorPatch';
+import { isBrowserTab } from '../utils/internalBrowser';
 
 interface EditorTab {
   id: string;
@@ -33,6 +36,11 @@ interface EditorWorkspaceProps {
   onOpenDiagramFile?: (path: string) => void;
   hasOpenTabs: boolean;
   patchHighlights?: FilePatchHighlight[];
+  revealRequest?: { path: string; line: number; token: number } | null;
+  browserUrl?: string;
+  onBrowserUrlChange?: (url: string) => void;
+  onCopyBrowserUrl?: (url: string) => void;
+  onOpenBrowserExternal?: (url: string) => void;
 }
 
 export const EditorWorkspace = forwardRef<CodeEditorHandle, EditorWorkspaceProps>(
@@ -55,10 +63,18 @@ export const EditorWorkspace = forwardRef<CodeEditorHandle, EditorWorkspaceProps
       onOpenDiagramFile,
       hasOpenTabs,
       patchHighlights = [],
+      revealRequest = null,
+      browserUrl = '',
+      onBrowserUrlChange,
+      onCopyBrowserUrl,
+      onOpenBrowserExternal,
     },
     ref,
   ) {
     const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('edit');
+    const activeTab = tabs.find((tab) => tab.id === activeTabId);
+    const showBrowser = isBrowserTab(activeTab);
+    const hasBrowserTab = tabs.some((tab) => isBrowserTab(tab));
 
     return (
       <div className="flex flex-col h-full min-h-0 gap-0">
@@ -104,19 +120,38 @@ export const EditorWorkspace = forwardRef<CodeEditorHandle, EditorWorkspaceProps
           {workspaceTab === 'visio' ? (
             <VisioPanel projectRoot={projectRoot} onOpenDiagramFile={onOpenDiagramFile} />
           ) : hasOpenTabs ? (
-            <CodeEditor
-              ref={ref}
-              tabs={tabs}
-              activeTabId={activeTabId}
-              content={content}
-              path={path}
-              language={language}
-              onContentChange={onContentChange}
-              onSaveSuccess={onSaveSuccess}
-              onRun={onRun}
-              canRun={canRun}
-              patchHighlights={patchHighlights}
-            />
+            <>
+              {hasBrowserTab ? (
+                <div className={`${showBrowser ? 'h-full' : 'hidden'} min-h-0`}>
+                  <ErrorBoundary>
+                    <BrowserPanel
+                      url={browserUrl}
+                      onUrlChange={(next) => onBrowserUrlChange?.(next)}
+                      onCopyUrl={(next) => onCopyBrowserUrl?.(next)}
+                      onOpenExternal={(next) => onOpenBrowserExternal?.(next)}
+                    />
+                  </ErrorBoundary>
+                </div>
+              ) : null}
+              {showBrowser ? null : (
+                <div className="h-full min-h-0">
+                  <CodeEditor
+                  ref={ref}
+                  tabs={tabs}
+                  activeTabId={activeTabId}
+                  content={content}
+                  path={path}
+                  language={language}
+                  onContentChange={onContentChange}
+                  onSaveSuccess={onSaveSuccess}
+                  onRun={onRun}
+                  canRun={canRun}
+                  patchHighlights={patchHighlights}
+                  revealRequest={revealRequest}
+                />
+                </div>
+              )}
+            </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center rounded-b-xl border border-[var(--corex-border)] bg-[var(--corex-panel)] p-8 text-center">
               <div className="w-14 h-14 rounded-2xl bg-[rgba(0,210,255,0.1)] border border-[var(--corex-spark)]/20 flex items-center justify-center mb-4">

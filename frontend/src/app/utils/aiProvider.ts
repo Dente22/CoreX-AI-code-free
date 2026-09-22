@@ -1,5 +1,7 @@
 import { fetchApi } from './api';
 
+export type HardwareTier = 'low' | 'medium' | 'high';
+
 export interface AiProviderPreset {
   id: string;
   name: string;
@@ -8,7 +10,9 @@ export interface AiProviderPreset {
   model_name: string;
   base_url: string;
   min_ram_gb: number;
-  tier: 'low' | 'medium' | 'high';
+  min_vram_gb?: number;
+  size_gb?: number;
+  tier: HardwareTier;
   pull_command: string;
   is_default: boolean;
   selected?: boolean;
@@ -16,43 +20,85 @@ export interface AiProviderPreset {
 
 export const DEFAULT_PROVIDER_ID = 'ollama-qwen';
 
+export const CODING_PROVIDER_BY_TIER: Record<HardwareTier, string> = {
+  low: 'ollama-qwen',
+  medium: 'ollama-qwen-7b',
+  high: 'ollama-qwen-14b',
+};
+
 export const FALLBACK_AI_PROVIDERS: AiProviderPreset[] = [
   {
     id: 'ollama-qwen',
-    name: 'Ollama — Qwen Coder',
-    description: 'Баланс качества кода и требований к железу.',
+    name: 'Ollama — Qwen Coder 3B',
+    description: 'Код на слабом GPU: целиком в 4 ГБ VRAM, контекст 4096.',
     provider_type: 'ollama',
-    model_name: 'qwen2.5-coder:7b',
+    model_name: 'qwen2.5-coder:3b',
     base_url: 'http://127.0.0.1:11435',
-    min_ram_gb: 8,
-    tier: 'medium',
-    pull_command: 'ollama pull qwen2.5-coder:7b',
+    min_ram_gb: 4,
+    min_vram_gb: 4,
+    size_gb: 1.9,
+    tier: 'low',
+    pull_command: 'ollama pull qwen2.5-coder:3b',
     is_default: true,
     selected: true,
   },
   {
+    id: 'ollama-lite',
+    name: 'Ollama Lite — Phi-3 Mini',
+    description: 'Лёгкий чат для слабых ПК. В коде слабее Qwen 3B.',
+    provider_type: 'ollama',
+    model_name: 'phi3:mini',
+    base_url: 'http://127.0.0.1:11435',
+    min_ram_gb: 4,
+    min_vram_gb: 4,
+    size_gb: 2.2,
+    tier: 'low',
+    pull_command: 'ollama pull phi3:mini',
+    is_default: false,
+    selected: false,
+  },
+  {
+    id: 'ollama-qwen-7b',
+    name: 'Ollama — Qwen Coder 7B',
+    description: 'Лучший локальный код на 8 ГБ VRAM (RTX 3050 и аналоги).',
+    provider_type: 'ollama',
+    model_name: 'qwen2.5-coder:7b',
+    base_url: 'http://127.0.0.1:11435',
+    min_ram_gb: 8,
+    min_vram_gb: 6,
+    size_gb: 4.7,
+    tier: 'medium',
+    pull_command: 'ollama pull qwen2.5-coder:7b',
+    is_default: false,
+    selected: false,
+  },
+  {
     id: 'ollama-claude',
-    name: 'Ollama — Claude-style (Llama 3.1)',
-    description: 'Универсальный ассистент для сложных задач.',
+    name: 'Ollama — Llama 3.1 8B',
+    description: 'Чат и ревью на среднем ПК. Для кода слабее Qwen 7B.',
     provider_type: 'ollama',
     model_name: 'llama3.1:8b',
     base_url: 'http://127.0.0.1:11435',
     min_ram_gb: 10,
-    tier: 'high',
+    min_vram_gb: 6,
+    size_gb: 4.9,
+    tier: 'medium',
     pull_command: 'ollama pull llama3.1:8b',
     is_default: false,
     selected: false,
   },
   {
-    id: 'ollama-lite',
-    name: 'Ollama Lite — Phi-3 Mini',
-    description: 'Облегчённая модель для слабых ПК.',
+    id: 'ollama-qwen-14b',
+    name: 'Ollama — Qwen Coder 14B',
+    description: 'Максимум качества: часть слоёв может уйти в RAM на 8 ГБ VRAM.',
     provider_type: 'ollama',
-    model_name: 'phi3:mini',
+    model_name: 'qwen2.5-coder:14b',
     base_url: 'http://127.0.0.1:11435',
-    min_ram_gb: 4,
-    tier: 'low',
-    pull_command: 'ollama pull phi3:mini',
+    min_ram_gb: 16,
+    min_vram_gb: 8,
+    size_gb: 9.0,
+    tier: 'high',
+    pull_command: 'ollama pull qwen2.5-coder:14b',
     is_default: false,
     selected: false,
   },
@@ -294,15 +340,34 @@ export async function deleteOllamaModel(providerId: string): Promise<OllamaModel
   return response.json();
 }
 
-export function tierLabel(tier: AiProviderPreset['tier']): string {
+export function tierLabel(tier: HardwareTier): string {
   if (tier === 'low') return 'Слабый ПК';
   if (tier === 'high') return 'Мощный ПК';
   return 'Средний ПК';
 }
 
+export function recommendHardwareTier(
+  vramGb?: number,
+  ramGb?: number,
+): HardwareTier {
+  if (typeof vramGb === 'number' && Number.isFinite(vramGb) && vramGb > 0) {
+    if (vramGb <= 4.5) return 'low';
+    if (vramGb <= 10) return 'medium';
+    return 'high';
+  }
+  if (typeof ramGb === 'number' && ramGb >= 24) return 'medium';
+  return 'low';
+}
+
+export function recommendedProviderId(vramGb?: number, ramGb?: number): string {
+  return CODING_PROVIDER_BY_TIER[recommendHardwareTier(vramGb, ramGb)];
+}
+
 const SHORT_LABELS: Record<string, string> = {
-  'ollama-qwen': 'Qwen',
-  'ollama-claude': 'Llama',
+  'ollama-qwen': 'Qwen 3B',
+  'ollama-qwen-7b': 'Qwen 7B',
+  'ollama-qwen-14b': 'Qwen 14B',
+  'ollama-claude': 'Llama 8B',
   'ollama-lite': 'Phi-3',
 };
 
@@ -321,5 +386,6 @@ export function getModelTierColor(tier: AiProviderPreset['tier']): string {
 }
 
 export function getModelTooltip(provider: AiProviderPreset): string {
-  return `${provider.name} · ${provider.model_name} · ${tierLabel(provider.tier)} · от ${provider.min_ram_gb} ГБ RAM`;
+  const vram = provider.min_vram_gb ? ` · от ${provider.min_vram_gb} ГБ VRAM` : '';
+  return `${provider.name} · ${provider.model_name} · ${tierLabel(provider.tier)} · от ${provider.min_ram_gb} ГБ RAM${vram}`;
 }

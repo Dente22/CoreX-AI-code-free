@@ -26,7 +26,7 @@ class TestAiProviderService:
     def test_list_providers_includes_selection(self, service):
         data = service.list_with_selection()
         assert data["selected_id"] == DEFAULT_PROVIDER_ID
-        assert len(data["providers"]) == 3
+        assert len(data["providers"]) == 5
         for provider in data["providers"]:
             assert provider["selected"] == (provider["id"] == DEFAULT_PROVIDER_ID)
 

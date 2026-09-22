@@ -128,7 +128,7 @@ export function AddPersonaModal({
           {error ? <p className="text-xs text-red-400">{error}</p> : null}
 
           <p className="text-[10px] text-[#6b7280]">
-            Скил сохранится в chat/personas/ открытого проекта и сразу появится в списке.
+            Скил сохранится в открытом проекте и сразу появится в списке.
           </p>
 
           <div className="flex justify-end gap-2 pt-1">

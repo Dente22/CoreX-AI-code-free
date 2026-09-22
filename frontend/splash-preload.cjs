@@ -7,4 +7,7 @@ contextBridge.exposeInMainWorld('splashAPI', {
     ipcRenderer.on('splash-update', listener);
     return () => ipcRenderer.removeListener('splash-update', listener);
   },
+  choose: (action) => {
+    ipcRenderer.send('splash-choice', action);
+  },
 });

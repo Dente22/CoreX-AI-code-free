@@ -22,6 +22,10 @@ if errorlevel 1 goto FailPause
 
 
 
+call "%~dp0_corex-common.bat" :EnsureAider
+
+
+
 call "%~dp0_corex-common.bat" :EnsureFrontendDeps
 
 if errorlevel 1 goto FailPause

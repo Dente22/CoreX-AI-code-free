@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from core.python_deps import ensure_requirements_line, extract_missing_module
+
 NAME_ERROR_RE = re.compile(
     r"NameError:\s*name\s+['\"]([^'\"]+)['\"]\s+is not defined",
     re.IGNORECASE,
@@ -131,6 +133,9 @@ def parse_error_hints(error_text: str) -> dict:
     text = error_text or ""
     missing_names = NAME_ERROR_RE.findall(text)
     missing_modules = MODULE_ERROR_RE.findall(text)
+    extra_module = extract_missing_module(text)
+    if extra_module and extra_module not in missing_modules:
+        missing_modules.append(extra_module)
     missing_files = FILE_MISSING_RE.findall(text)
     syntax_files = SYNTAX_LINE_RE.findall(text)
     return {
@@ -169,6 +174,15 @@ def remediate_python_error(
     actions: list[str] = []
     changed = False
 
+    if source_path.is_dir() or source_rel in (".", "", "./"):
+        return {
+            "ok": False,
+            "action": "none",
+            "path": source_rel,
+            "message": "Нельзя записать в папку проекта — укажите файл (например main.py)",
+            "hints": hints,
+        }
+
     if not source_path.is_file():
         template = _default_file_template(source_rel)
         source_path.parent.mkdir(parents=True, exist_ok=True)
@@ -193,25 +207,17 @@ def remediate_python_error(
             changed = True
 
     for module in hints["missing_modules"]:
-        req_path = _resolve(project_root, "requirements.txt")
-        line = f"{module}\n"
-        if req_path and req_path.is_file():
-            req_text = req_path.read_text(encoding="utf-8")
-            if module not in req_text:
-                req_path.write_text(req_text.rstrip() + "\n" + line, encoding="utf-8")
-                actions.append(f"добавлен {module} в requirements.txt")
-                changed = True
-        else:
-            req_file = project_root / "requirements.txt"
-            req_file.write_text(f"# CoreX auto-stub\n{line}", encoding="utf-8")
-            actions.append("создан requirements.txt")
+        if ensure_requirements_line(project_root, module):
+            actions.append(f"добавлен {module} в requirements.txt")
             changed = True
 
     for raw_missing in hints["missing_files"]:
         missing_rel = raw_missing.replace("\\", "/").lstrip("/")
-        if missing_rel == source_rel:
+        if missing_rel == source_rel or missing_rel in (".", "", "./"):
             continue
         missing_path = _resolve(project_root, missing_rel)
+        if missing_path and missing_path.is_dir():
+            continue
         if missing_path and not missing_path.is_file():
             missing_path.parent.mkdir(parents=True, exist_ok=True)
             missing_path.write_text(_default_file_template(missing_rel), encoding="utf-8")

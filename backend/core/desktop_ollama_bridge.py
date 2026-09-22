@@ -138,7 +138,7 @@ def import_model_from_desktop(model_name: str) -> dict[str, Any]:
                 "success": False,
                 "error": (
                     f"Файл blob отсутствует в системной Ollama: {blob_name}. "
-                    "Перекачайте модель через ollama pull qwen2.5-coder:7b."
+                    "Перекачайте модель через ollama pull qwen2.5-coder:3b."
                 ),
             }
         shutil.copy2(source_blob, target_blob)

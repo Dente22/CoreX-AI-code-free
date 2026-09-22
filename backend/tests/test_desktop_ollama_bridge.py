@@ -30,12 +30,29 @@ def test_collect_manifest_digests_reads_layers():
 
 
 def test_catalog_install_status_marks_desktop_only_as_needs_import():
-    rows = catalog_install_status([], desktop_installed=[{"name": "qwen2.5-coder:7b"}])
+    from core.ollama_lifecycle import reset_ollama_lifecycle_state
+
+    reset_ollama_lifecycle_state()
+    rows = catalog_install_status([], desktop_installed=[{"name": "qwen2.5-coder:3b"}])
     by_id = {row["id"]: row for row in rows}
     assert by_id["ollama-qwen"]["installed"] is True
     assert by_id["ollama-qwen"]["installed_in_desktop"] is True
     assert by_id["ollama-qwen"]["installed_in_corex"] is False
     assert by_id["ollama-qwen"]["needs_import"] is True
+
+
+def test_catalog_skips_import_when_already_using_desktop_ollama():
+    from core.ollama_lifecycle import DESKTOP_OLLAMA_BASE_URL, reset_ollama_lifecycle_state
+
+    reset_ollama_lifecycle_state()
+    from core import ollama_lifecycle
+
+    ollama_lifecycle._attach_endpoint(DESKTOP_OLLAMA_BASE_URL, desktop=True)
+    rows = catalog_install_status([], desktop_installed=[{"name": "qwen2.5-coder:3b"}])
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["ollama-qwen"]["installed"] is True
+    assert by_id["ollama-qwen"]["needs_import"] is False
+    reset_ollama_lifecycle_state()
 
 
 def test_import_model_from_desktop_copies_manifest_and_blob(tmp_path, monkeypatch):
@@ -88,13 +105,16 @@ def test_import_model_from_desktop_copies_manifest_and_blob(tmp_path, monkeypatc
 
 @pytest.mark.asyncio
 async def test_get_models_snapshot_includes_desktop_models(monkeypatch):
+    from core.ollama_lifecycle import reset_ollama_lifecycle_state
+
+    reset_ollama_lifecycle_state()
     monkeypatch.setattr(
         "core.ollama_model_service.list_installed_models",
         AsyncMock(return_value={"success": True, "models": []}),
     )
     monkeypatch.setattr(
         "core.ollama_model_service.list_desktop_ollama_models",
-        AsyncMock(return_value={"success": True, "models": [{"name": "qwen2.5-coder:7b"}]}),
+        AsyncMock(return_value={"success": True, "models": [{"name": "qwen2.5-coder:3b"}]}),
     )
 
     from core.ollama_model_service import get_models_snapshot
@@ -102,4 +122,4 @@ async def test_get_models_snapshot_includes_desktop_models(monkeypatch):
     snapshot = await get_models_snapshot()
     qwen = next(row for row in snapshot["catalog"] if row["id"] == "ollama-qwen")
     assert qwen["needs_import"] is True
-    assert snapshot["desktop_models"] == [{"name": "qwen2.5-coder:7b"}]
+    assert snapshot["desktop_models"] == [{"name": "qwen2.5-coder:3b"}]

@@ -18,7 +18,14 @@ HTML_MIN_CHARS = 1200
 JS_MIN_CHARS = 500
 
 
-def is_web_site_task(*texts: str) -> bool:
+def is_web_site_task(*texts: str, coding_language: str | None = None) -> bool:
+    from core.coding_language import language_forces_code, language_forces_web, resolve_effective_language
+
+    effective = resolve_effective_language(coding_language, *texts)
+    if language_forces_code(effective):
+        return False
+    if language_forces_web(effective):
+        return True
     blob = " ".join(t for t in texts if t)
     return bool(WEB_TASK_RE.search(blob))
 

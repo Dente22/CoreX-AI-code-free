@@ -1,23 +1,85 @@
-frontend/vendor/
-frontend/release/
-frontend/dist/
+# Dependencies
 node_modules/
-__pycache__/
-*.pyc
-.pytest_cache/
-.coverage
 .venv/
 .venv-*/
-.tools/
-ollama_models/
-ui-design-backup/
-*.log
+venv/
+env/
 
-# Secrets must never ship with the project folder
-chat/ai_online_providers.json
+# Build / release
+dist/
+frontend/dist/
+frontend/release/
+frontend/vendor/
+build/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / local
+.cursor/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Secrets & local env (never commit)
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 credentials.json
+chat/ai_online_providers.json
+!chat/ai_online_providers.example.json
+
+# Runtime / local state
+chat/project_memory.md
+chat/history/
+chat/*.log
+chat/token_usage.json
+chat/ai_runtime.json
+chat/gpu_preference.json
+chat/web_access.json
+chat/coding_engine.json
+*.log
+frontend/_*.txt
+frontend/_*.log
+
+# Showcase: keep structure, ignore accidental bulky dumps unless committed on purpose
+showcase/_inbox/*
+!showcase/_inbox/.gitkeep
+showcase/**/node_modules/
+showcase/**/.venv/
+showcase/**/dist/
+showcase/**/__pycache__/
+
+# Local model weights (never push)
+models/
+ollama_models/
+_tmp_*/
+ui-design-backup/
+
+# OS / temp
+*.tmp
+*.temp
+~$
+
+# Installer artifacts
+*.exe
+!**/tools/**/*.exe
+*.msi
+*.dmg
+*.AppImage
+
+.aider*
+

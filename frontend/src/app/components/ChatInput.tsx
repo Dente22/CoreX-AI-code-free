@@ -154,7 +154,7 @@ export function ChatInput({ onSend, isProcessing = false, onStop, projectRoot, e
             onKeyDown={handleKeyDown}
             placeholder={
               projectRoot
-                ? 'Сообщение… /main.py — ссылка на файл'
+                ? 'Сообщение… /файл — смотреть или править, /папка — создать файл внутри'
                 : 'Напишите сообщение CoreX AI...'
             }
             aria-label="Сообщение для CoreX AI"
@@ -208,7 +208,7 @@ export function ChatInput({ onSend, isProcessing = false, onStop, projectRoot, e
         </div>
 
         <div className="mt-1.5 text-[10px] text-[var(--corex-text-dim)] text-center">
-          Enter — отправить · /файл — вложение
+          Enter — отправить · /файл — смотреть, изменить или куда писать
         </div>
       </form>
     </div>

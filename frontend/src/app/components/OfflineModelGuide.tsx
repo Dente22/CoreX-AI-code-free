@@ -7,6 +7,7 @@ interface OfflineModelGuideProps {
   providers: AiProviderPreset[];
   selectedId?: string;
   availableRamGb?: number;
+  availableVramGb?: number;
   onSelectModel?: (id: string) => void;
   onNotification?: (message: string) => void;
 }
@@ -15,6 +16,7 @@ export function OfflineModelGuide({
   providers,
   selectedId,
   availableRamGb,
+  availableVramGb,
   onSelectModel,
   onNotification,
 }: OfflineModelGuideProps) {
@@ -43,6 +45,7 @@ export function OfflineModelGuide({
         providers={providers}
         selectedId={selectedId}
         availableRamGb={availableRamGb}
+        availableVramGb={availableVramGb}
         onSelectModel={onSelectModel}
         onNotification={onNotification}
       />

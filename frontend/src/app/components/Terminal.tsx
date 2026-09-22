@@ -64,7 +64,12 @@ export function Terminal({
     const form = event.currentTarget;
     const input = form.elements.namedItem('terminal-input') as HTMLInputElement;
     const value = input.value.trim();
-    if (!value || isRunning) {
+    if (isRunning) {
+      onCommand(input.value);
+      input.value = '';
+      return;
+    }
+    if (!value) {
       return;
     }
     onCommand(value);
@@ -153,9 +158,9 @@ export function Terminal({
           ref={inputRef}
           name="terminal-input"
           type="text"
-          disabled={isRunning}
+          disabled={false}
           aria-label="Команда консоли"
-          placeholder={isRunning ? 'Ожидание...' : 'Команда (Enter)'}
+          placeholder={isRunning ? 'Ввод для программы (Enter)' : 'Команда (Enter)'}
           className="flex-1 bg-transparent outline-none text-[var(--corex-text)] font-mono text-xs disabled:opacity-50"
           autoComplete="off"
           spellCheck={false}

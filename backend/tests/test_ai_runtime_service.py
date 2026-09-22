@@ -38,7 +38,7 @@ class TestAiRuntimeService:
     def test_snapshot_includes_both_sections(self, runtime_service):
         snapshot = runtime_service.get_snapshot()
         assert snapshot["mode"] == "local"
-        assert len(snapshot["local"]["providers"]) == 3
+        assert len(snapshot["local"]["providers"]) == 5
         assert snapshot["online"]["providers"] == []
 
     def test_select_local_provider(self, runtime_service):

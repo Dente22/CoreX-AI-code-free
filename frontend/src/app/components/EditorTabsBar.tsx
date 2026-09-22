@@ -29,9 +29,11 @@ const EXT_COLORS: Record<string, string> = {
   json: '#cbcb41',
   md: '#519aba',
   mmd: '#9a5eff',
+  web: '#22d3ee',
 };
 
-function tabExt(name: string) {
+function tabExt(name: string, language?: string) {
+  if (language === 'browser') return 'web';
   const dot = name.lastIndexOf('.');
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
 }
@@ -68,7 +70,7 @@ export function EditorTabsBar({
       <div ref={scrollRef} className="corex-editor-tabs-scroll flex-1 flex items-stretch overflow-x-auto">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
-          const ext = tabExt(tab.name);
+          const ext = tabExt(tab.name, tab.language);
           const extColor = EXT_COLORS[ext] ?? 'var(--corex-text-dim)';
 
           return (

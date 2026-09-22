@@ -79,3 +79,14 @@ def test_trim_history_used_in_build_messages():
     # system + trimmed history + user
     assert len(messages) <= 1 + 8 + 1
     assert all(len(m["content"]) <= 2600 for m in messages if m["role"] != "system")
+
+
+def test_temporary_model_restores_selected():
+    client = OnlineApiClient(
+        model_name="google/gemma-4-31b-it:free",
+        base_url="https://openrouter.ai/api/v1",
+        api_key="sk",
+    )
+    with client.temporary_model("openai/gpt-oss-20b:free"):
+        assert client.model_name == "openai/gpt-oss-20b:free"
+    assert client.model_name == "google/gemma-4-31b-it:free"
