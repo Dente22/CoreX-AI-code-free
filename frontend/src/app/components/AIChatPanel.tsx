@@ -374,6 +374,7 @@ export function AIChatPanel({
                 ? message.model.replace(/^.*\//, '').replace(/:free$/i, '')
                 : '';
 
+              const streaming = Boolean(message?.streaming);
               return (
                 <div key={id} className={`corex-chat-row ${isUser ? 'corex-chat-row--user' : 'corex-chat-row--ai'}`}>
                   <div className={`corex-chat-avatar ${isUser ? 'corex-avatar-user' : 'corex-avatar-ai'}`}>
@@ -396,6 +397,7 @@ export function AIChatPanel({
                       ) : (
                         content
                       )}
+                      {streaming ? <span className="corex-chat-caret" aria-hidden /> : null}
                     </div>
                     {role === 'assistant' && content ? (
                       <div className="corex-chat-meta">
@@ -416,7 +418,7 @@ export function AIChatPanel({
               );
             })}
 
-            {(isThinking || safeThoughts.length > 0) && (
+            {(isThinking || safeThoughts.length > 0) && !safeMessages.some((message) => message.streaming) && (
               <ThinkingMessage thoughts={safeThoughts} isThinking={isThinking} />
             )}
             <div ref={messagesEndRef} />

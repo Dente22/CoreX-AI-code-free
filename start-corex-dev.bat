@@ -16,6 +16,8 @@ if exist "%COREX_PYTHON%" (
 call "%~dp0_corex-common.bat" :EnsureFrontendDeps
 if errorlevel 1 exit /b 1
 
+call "%~dp0_corex-common.bat" :EnsureAider
+
 set COREX_OPEN_DEVTOOLS=1
 echo [CoreX] Dev mode: Vite HMR + Electron...
 pushd "%COREX_ROOT%\frontend"

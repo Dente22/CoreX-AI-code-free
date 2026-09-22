@@ -426,6 +426,74 @@ function preferIntegratedGpuForUi(options = {}) {
   return { applied: true };
 }
 
+const PYTHON311_INSTALLER_URL = 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe';
+
+function resolveAiderSidecarPath(options) {
+  const joinPath = options.joinPath || require('path').join;
+  const root = options.projectRoot || '';
+  if (options.platform === 'win32') {
+    return joinPath(root, '.venv-aider', 'Scripts', 'aider.exe');
+  }
+  return joinPath(root, '.venv-aider', 'bin', 'aider');
+}
+
+function listAiderPythonCandidates(options) {
+  const joinPath = options.joinPath || require('path').join;
+  const localAppData = options.localAppData || '';
+  const programFiles = options.programFiles || '';
+  const candidates = [];
+  if (options.platform !== 'win32') {
+    return candidates;
+  }
+  for (const ver of ['Python311', 'Python312', 'Python310']) {
+    if (localAppData) {
+      candidates.push(joinPath(localAppData, 'Programs', 'Python', ver, 'python.exe'));
+    }
+    if (programFiles) {
+      candidates.push(joinPath(programFiles, ver, 'python.exe'));
+    }
+  }
+  candidates.push('C:\\Python311\\python.exe');
+  return candidates;
+}
+
+function probeAiderLaunchEnv(options) {
+  const existsSync = options.existsSync || (() => false);
+  const aiderPath = resolveAiderSidecarPath(options);
+  if (existsSync(aiderPath)) {
+    return { ready: true, need: null, aiderPath };
+  }
+
+  let pythonPath = '';
+  const execFileSync = options.execFileSync;
+  if (typeof execFileSync === 'function' && options.platform === 'win32') {
+    for (const ver of ['-3.11', '-3.12', '-3.10']) {
+      try {
+        const out = String(
+          execFileSync('py', [ver, '-c', 'import sys; print(sys.executable)'], {
+            encoding: 'utf8',
+            timeout: 8000,
+            windowsHide: true,
+          }),
+        ).trim();
+        if (out && existsSync(out)) {
+          pythonPath = out;
+          break;
+        }
+      } catch {
+        // py launcher / version missing
+      }
+    }
+  }
+  if (!pythonPath) {
+    pythonPath = listAiderPythonCandidates(options).find((candidate) => existsSync(candidate)) || '';
+  }
+  if (!pythonPath) {
+    return { ready: false, need: 'python311', aiderPath };
+  }
+  return { ready: false, need: 'aider', aiderPath, pythonPath };
+}
+
 module.exports = {
   resolveProjectRoot,
   resolvePythonCommand,
@@ -455,4 +523,8 @@ module.exports = {
   killZombieLlamaServersSync,
   killResidualLlamaServersSync,
   preferIntegratedGpuForUi,
+  PYTHON311_INSTALLER_URL,
+  resolveAiderSidecarPath,
+  listAiderPythonCandidates,
+  probeAiderLaunchEnv,
 };

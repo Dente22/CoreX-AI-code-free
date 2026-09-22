@@ -185,11 +185,11 @@ def compact_persona_for_local(
         return (
             f"{head}\n\n"
             "ЛОКАЛЬНЫЙ РЕЖИМ CoreX (дизайнер):\n"
-            "- Сохрани spec в design-system/ (MASTER.md, pages/index.md, blocks/*.md).\n"
-            "- ПЕРВЫЙ ход: write_file design-system/MASTER.md\n"
-            "- Затем pages/index.md и blocks/hero.md, blocks/navigation.md, blocks/sections.md\n"
+            "- Скилл ui-ux-pro-max УЖЕ записал design-system/MASTER.md (палитра, шрифты, стиль).\n"
+            "- Не затирай эту палитру серым Arial / #333 / дефолтом CoreX.\n"
+            "- Допиши pages/index.md и blocks/hero.md, navigation.md, sections.md под задачу.\n"
             "- НЕ view_file для папок. Только относительные пути.\n"
-            "- run_command ЗАПРЕЩЁН. done только после write_file в design-system/.\n"
+            "- run_command не нужен: скилл уже отработал. done после файлов в design-system/.\n"
         )
     if "developer" in agent or "lead" in agent:
         if not web_task:
@@ -197,9 +197,9 @@ def compact_persona_for_local(
         return (
             f"{head}\n\n"
             "ЛОКАЛЬНЫЙ РЕЖИМ CoreX (разработчик, веб-слои):\n"
-            "1) view_file design-system/MASTER.md и pages/index.md\n"
-            "2) write_file index.html (+ style.css link + script.js)\n"
-            "3) write_file style.css — тёмный gradient, cards, @media\n"
+            "1) view_file design-system/MASTER.md и pages/index.md — это скилл ui-ux-pro-max\n"
+            "2) write_file index.html (+ style.css link + script.js) по токенам MASTER\n"
+            "3) write_file style.css — hex и шрифты из MASTER, не #9A5EFF если в spec другие\n"
             "4) write_file script.js — nav toggle + smooth scroll + CTA\n"
             "5) без run_command. Не done без script.js.\n"
         )

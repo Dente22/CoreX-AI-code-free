@@ -4,4 +4,5 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   model?: string;
+  streaming?: boolean;
 }

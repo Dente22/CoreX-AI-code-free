@@ -270,6 +270,7 @@ class CoreXOrchestrator:
         self._pending_lesson: dict[str, Any] = {}
         self._coding_engine = "aider"
         self._aider_proc: dict[str, Any] = {}
+        self._quiet_chat_thoughts = False
 
         self._base_system_prompt = (
             "You are CoreX, an autonomous AI Engineer inside a strict execution pipeline.\n"
@@ -1932,7 +1933,37 @@ class CoreXOrchestrator:
                 "target": "thinking_done",
             }))
 
+    def _broadcast_chat_delta(self, text: str) -> None:
+        if not self.websocket_server:
+            return
+        payload = {
+            "target": "chat_delta",
+            "sender": "CoreX",
+            "text": text,
+        }
+        if self._active_reply_model:
+            payload["model"] = self._active_reply_model
+        asyncio.create_task(self.websocket_server.broadcast(payload))
+
+    def _broadcast_chat_delta_done(self) -> None:
+        if self.websocket_server:
+            asyncio.create_task(self.websocket_server.broadcast({
+                "target": "chat_delta_done",
+                "sender": "CoreX",
+            }))
+
     def _broadcast_thinking(self, thought: str):
+        if getattr(self, "_quiet_chat_thoughts", False):
+            label = (thought or "").strip()
+            if label:
+                self._broadcast_trace(
+                    "llm",
+                    "thought",
+                    label[:160],
+                    node="llm",
+                    status="done",
+                )
+            return
         if self.websocket_server:
             asyncio.create_task(self.websocket_server.broadcast({
                 "target": "thinking",
@@ -2148,6 +2179,7 @@ class CoreXOrchestrator:
             await asyncio.sleep(0)
             if self.websocket_server and hasattr(self.websocket_server, "clear_inflight_task_key"):
                 self.websocket_server.clear_inflight_task_key()
+            self._quiet_chat_thoughts = False
             self._broadcast_thinking_done()
             if self._trace_task_id:
                 self._broadcast_trace(
@@ -2184,6 +2216,7 @@ class CoreXOrchestrator:
             self._coding_engine = validate_coding_engine(coding_engine)
         else:
             self._coding_engine = get_coding_engine(self._app_root())
+        self._quiet_chat_thoughts = self._coding_engine == "aider"
 
         self._broadcast_trace(
             "task",
@@ -2661,13 +2694,16 @@ class CoreXOrchestrator:
     ) -> str | None:
         """Aider вместо JSON-цикла: скилы/персона в промпте, без автокоммита."""
         from core.aider_service import (
+            AiderChatFilter,
             build_aider_launch,
             build_aider_message,
+            public_aider_reply,
             run_aider,
         )
         from core.coding_language import language_prompt_ru
         from core.core_x_library import resolve_persona_prompt
         from core.knowledge_service import build_knowledge_bundle
+        from core.web_delivery_layers import is_web_site_task, salvage_web_project
 
         del conversational  # чат без кода не сюда попадает
         active = self._resolve_llm()
@@ -2681,36 +2717,68 @@ class CoreXOrchestrator:
             active_root, persona_id, for_orchestrator=True
         )
         knowledge = build_knowledge_bundle(active_root, user_task or current_prompt, persona_id)
+        coding_language = getattr(self, "_coding_language", "auto")
+        web_task = is_web_site_task(
+            user_task,
+            current_prompt,
+            coding_language=coding_language,
+        )
         lang_hint = ""
         try:
-            lang_hint = language_prompt_ru(getattr(self, "_coding_language", "auto"))
+            lang_hint = language_prompt_ru(coding_language)
         except Exception:
             lang_hint = ""
+        if web_task:
+            lang_hint = (
+                "HTML, CSS и JavaScript (index.html, style.css, script.js). Не Python."
+            )
+
+        from core.design_skill_runtime import design_skill_digest
+
+        skill_digest = design_skill_digest(active_root) if web_task else ""
+        knowledge_text = knowledge.text if knowledge else ""
+        if skill_digest:
+            knowledge_text = f"{skill_digest}\n{knowledge_text}".strip()
 
         chat_mode = "ask" if (is_question and not requires_writes) else None
         message = build_aider_message(
             task=user_task or current_prompt,
             persona_label=persona_name or (persona_id or ""),
             persona_body=persona_body or "",
-            knowledge_text=knowledge.text if knowledge else "",
+            knowledge_text=knowledge_text,
             language_hint=lang_hint,
             write_dest=json_target_path or "",
             plan_text=current_prompt if current_prompt.strip() else "",
         )
         mode_label = chat_mode or "default"
-        self._broadcast_thinking(
-            f"Aider · {llm_thinking_label(active)} · режим {mode_label}"
-        )
-        if persona_name:
-            self._broadcast_thinking(f"Персона/скил: {persona_name}")
         self._broadcast_trace(
             "llm",
             "aider_start",
-            "Запуск Aider",
+            f"Запуск Aider · {llm_thinking_label(active)} · {mode_label}",
             node="llm",
             status="active",
-            meta={**self._trace_llm_meta(active), "coding_engine": "aider"},
+            meta={
+                **self._trace_llm_meta(active),
+                "coding_engine": "aider",
+                "persona": persona_name or "",
+            },
         )
+
+        dest = (json_target_path or "").replace("\\", "/").lower()
+        edit_files = None
+        read_files = None
+        if web_task and not (is_question and not requires_writes):
+            if dest.startswith("design-system") or dest.endswith(".md"):
+                edit_files = [
+                    "design-system/MASTER.md",
+                    "design-system/pages/index.md",
+                    "design-system/blocks/hero.md",
+                    "design-system/blocks/navigation.md",
+                    "design-system/blocks/sections.md",
+                ]
+            else:
+                edit_files = ["index.html", "style.css", "script.js"]
+                read_files = ["design-system/MASTER.md", "design-system/pages/index.md"]
 
         try:
             launch = build_aider_launch(
@@ -2718,6 +2786,8 @@ class CoreXOrchestrator:
                 active=active,
                 message=message,
                 chat_mode=chat_mode,
+                read_files=read_files,
+                edit_files=edit_files,
                 for_question=bool(is_question and not requires_writes),
             )
         except Exception as exc:
@@ -2733,13 +2803,22 @@ class CoreXOrchestrator:
             self._broadcast("chat", "CoreX Error", f"Aider: {detail}")
             return None
 
+        chat_filter = AiderChatFilter()
+        announced_files: list[str] = []
+
         async def _on_line(line: str) -> None:
-            text = (line or "").strip()
-            if not text:
+            event = chat_filter.feed(line)
+            if event is None:
                 return
-            if len(text) > 240:
-                text = text[:237] + "…"
-            self._broadcast_thinking(text)
+            if event.kind == "reply":
+                self._broadcast_chat_delta(event.text)
+                return
+            if event.kind == "file":
+                path = (event.path or "").replace("\\", "/").lstrip("./")
+                if path and path not in announced_files:
+                    announced_files.append(path)
+                    self._broadcast("chat", "CoreX", f"Файл изменён: {path}")
+                return
 
         result = await run_aider(
             launch,
@@ -2775,7 +2854,7 @@ class CoreXOrchestrator:
             meta={**self._trace_llm_meta(active), "coding_engine": "aider"},
         )
 
-        edited = list(result.edited_files)
+        edited = list(result.edited_files or chat_filter.files)
         if require_verification and not edited and json_target_path:
             candidate = Path(active_root) / json_target_path
             if candidate.is_file():
@@ -2811,23 +2890,39 @@ class CoreXOrchestrator:
                         f"После Aider запуск упал: {clean}\n{detail[:1500]}",
                     )
 
-        summary_lines = [
-            line
-            for line in (result.stdout or "").splitlines()
-            if line.strip() and not line.strip().startswith(">")
-        ]
-        tail = "\n".join(summary_lines[-40:]).strip()
-        if edited:
-            files = ", ".join(edited[:8])
-            msg = f"Aider обновил: {files}."
-            if verified:
-                msg += f" Проверено: {', '.join(sorted(verified))}."
-            if tail:
-                msg += f"\n\n{tail[-1200:]}"
-        elif tail:
-            msg = tail[-2000:]
+        for rel in edited:
+            clean = rel.replace("\\", "/").lstrip("./")
+            if clean and clean not in announced_files:
+                announced_files.append(clean)
+                self._broadcast("chat", "CoreX", f"Файл изменён: {clean}")
+
+        if web_task:
+            upgraded = salvage_web_project(active_root, user_task=user_task or current_prompt)
+            for name in upgraded:
+                try:
+                    content = (active_root / name).read_text(encoding="utf-8")
+                except OSError:
+                    content = ""
+                if content:
+                    self._broadcast_editor_patch(name, content, [])
+                if name not in announced_files:
+                    announced_files.append(name)
+                    self._broadcast("chat", "CoreX", f"Файл изменён: {name}")
+            if upgraded:
+                edited = list(dict.fromkeys([*edited, *upgraded]))
+
+        streamed = chat_filter.reply_text
+        msg = public_aider_reply(streamed, edited)
+        if verified:
+            checked = ", ".join(sorted(verified))
+            if checked and "Проверено" not in msg:
+                msg = f"{msg} Проверено: {checked}."
+        if streamed:
+            self._broadcast_chat_delta_done()
+            if msg != streamed:
+                self._broadcast("chat", "CoreX", msg)
         else:
-            msg = "Aider завершил шаг."
+            self._broadcast("chat", "CoreX", msg)
 
         if edited or verified:
             try:
@@ -2847,7 +2942,6 @@ class CoreXOrchestrator:
                 files=edited,
             )
 
-        self._broadcast("chat", "CoreX", msg)
         return msg
 
     async def _run_agent_loop(

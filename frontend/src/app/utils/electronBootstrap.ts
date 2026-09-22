@@ -19,6 +19,9 @@ export {
   parseWmicProcessRows,
   killZombieLlamaServersSync,
   preferIntegratedGpuForUi,
+  PYTHON311_INSTALLER_URL,
+  resolveAiderSidecarPath,
+  probeAiderLaunchEnv,
 } from '../../../electronBootstrap.cjs';
 
 export type {

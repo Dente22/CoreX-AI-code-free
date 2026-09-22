@@ -86,6 +86,35 @@ def test_missing_web_deliverables(tmp_path):
     assert missing_web_deliverables(tmp_path) == []
 
 
+def test_salvage_replaces_gray_arial_stub(tmp_path):
+    from core.web_delivery_layers import salvage_web_project
+
+    (tmp_path / "index.html").write_text(
+        "<!DOCTYPE html><html><body><h1>Клуб</h1></body></html>",
+        encoding="utf-8",
+    )
+    (tmp_path / "style.css").write_text(
+        "body { font-family: Arial, sans-serif; margin: 0; }\n"
+        "header { background-color: #333; color: #fff; }\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "script.js").write_text(
+        "document.addEventListener('DOMContentLoaded', function() {});\n",
+        encoding="utf-8",
+    )
+
+    changed = salvage_web_project(tmp_path, user_task="создай сайт для компьютерного клуба")
+    assert "index.html" in changed
+    assert "style.css" in changed
+    assert "script.js" in changed
+    css = (tmp_path / "style.css").read_text(encoding="utf-8")
+    html = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert "#0b1020" in css
+    assert "Arial" not in css
+    assert 'href="style.css"' in html
+    assert "script.js" in html
+
+
 def test_missing_flags_styles_css_duplicate(tmp_path):
     (tmp_path / "index.html").write_text(
         starter_index_html(title="Club", hero="Club"),

@@ -293,7 +293,9 @@
 
       .choice-actions button {
         flex: 1;
-        height: 34px;
+        min-height: 34px;
+        height: auto;
+        padding: 6px 8px;
         border-radius: 8px;
         font-size: 12px;
         font-weight: 600;
@@ -319,6 +321,89 @@
 
       .choice-close:hover {
         background: rgba(30, 41, 59, 0.95);
+      }
+
+      .install {
+        display: none;
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 22px;
+        z-index: 5;
+        padding: 14px;
+        border-radius: 14px;
+        background: rgba(8, 12, 22, 0.94);
+        border: 1px solid rgba(0, 210, 255, 0.28);
+        -webkit-app-region: no-drag;
+      }
+
+      .shell.installing .install {
+        display: block;
+      }
+
+      .shell.installing .status,
+      .shell.installing .track {
+        visibility: hidden;
+      }
+
+      .shell.choice-open .install {
+        display: none;
+      }
+
+      .install-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .install-title {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #e2e8f0;
+      }
+
+      .install-pct {
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: #00d2ff;
+      }
+
+      .install-bar {
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+      }
+
+      .install-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #9a5eff, #00d2ff);
+        box-shadow: 0 0 12px rgba(0, 210, 255, 0.35);
+        transition: width 0.25s ease;
+      }
+
+      .install-fill.indeterminate {
+        width: 38%;
+        animation: install-slide 1.15s ease-in-out infinite;
+      }
+
+      @keyframes install-slide {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(280%); }
+      }
+
+      .install-step {
+        margin-top: 8px;
+        font-size: 11px;
+        line-height: 1.4;
+        color: #94a3b8;
+        min-height: 16px;
       }
     </style>
   </head>
@@ -359,6 +444,15 @@
         </div>
       </div>
 
+      <div class="install" id="install">
+        <div class="install-head">
+          <span class="install-title" id="install-title">Python 3.11</span>
+          <span class="install-pct" id="install-pct"></span>
+        </div>
+        <div class="install-bar"><div class="install-fill" id="install-fill"></div></div>
+        <div class="install-step" id="install-step">Подготовка…</div>
+      </div>
+
       <div class="footer">
         <div class="status" id="status">Запуск…</div>
         <div class="track"><div class="fill" id="fill"></div></div>
@@ -380,18 +474,67 @@
         model_pending: 'модель',
         online_config: 'online api',
         ollama_skipped: 'без ollama',
+        python311: 'python 3.11',
+        aider: 'aider',
+        aider_skipped: 'без aider',
         ui: 'интерфейс',
         ready: 'готово',
       };
 
+      const installTitleEl = document.getElementById('install-title');
+      const installStepEl = document.getElementById('install-step');
+      const installPctEl = document.getElementById('install-pct');
+      const installFillEl = document.getElementById('install-fill');
       const choiceTextEl = document.getElementById('choice-text');
-      let choiceOpen = false;
 
-      function setChoiceOpen(open, message) {
+      function setInstall(info) {
+        if (!info) {
+          shellEl.classList.remove('installing');
+          return;
+        }
+        setChoiceOpen(false);
+        shellEl.classList.add('installing');
+        if (installTitleEl && info.title) installTitleEl.textContent = info.title;
+        if (installStepEl) installStepEl.textContent = info.step || '';
+        const pct = info.percent;
+        if (typeof pct === 'number' && Number.isFinite(pct)) {
+          const clamped = Math.max(0, Math.min(100, pct));
+          if (installPctEl) installPctEl.textContent = clamped + '%';
+          if (installFillEl) {
+            installFillEl.classList.remove('indeterminate');
+            installFillEl.style.width = clamped + '%';
+          }
+        } else {
+          if (installPctEl) installPctEl.textContent = '';
+          if (installFillEl) {
+            installFillEl.style.width = '38%';
+            installFillEl.classList.add('indeterminate');
+          }
+        }
+      }
+      const choiceContinueEl = document.getElementById('choice-continue');
+      const choiceCloseEl = document.getElementById('choice-close');
+      let choiceOpen = false;
+      let primaryAction = 'continue';
+      let secondaryAction = 'close';
+
+      function setChoiceOpen(open, message, options = {}) {
         choiceOpen = Boolean(open);
         shellEl.classList.toggle('choice-open', choiceOpen);
         if (message && choiceTextEl) {
           choiceTextEl.textContent = message;
+        }
+        if (choiceContinueEl && options.primaryLabel) {
+          choiceContinueEl.textContent = options.primaryLabel;
+        }
+        if (choiceCloseEl && options.secondaryLabel) {
+          choiceCloseEl.textContent = options.secondaryLabel;
+        }
+        if (options.primaryAction) primaryAction = options.primaryAction;
+        if (options.secondaryAction) secondaryAction = options.secondaryAction;
+        if (!choiceOpen) {
+          primaryAction = 'continue';
+          secondaryAction = 'close';
         }
       }
 
@@ -404,8 +547,14 @@
         }
         if (options.error) shellEl.classList.add('error');
         if (progress >= 100) shellEl.classList.add('done');
-        if (options.choice === 'ollama_missing') {
-          setChoiceOpen(true, message || choiceTextEl.textContent);
+        if (options.install) {
+          setInstall(options.install);
+        } else if (options.install === null) {
+          setInstall(null);
+        }
+        if (options.choice) {
+          setInstall(null);
+          setChoiceOpen(true, message || choiceTextEl.textContent, options);
         } else if (options.choice === null || options.phase === 'ui' || options.phase === 'ollama_skipped') {
           setChoiceOpen(false);
         }
@@ -422,12 +571,12 @@
       document.getElementById('choice-continue').addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        sendChoice('continue');
+        sendChoice(primaryAction);
       });
       document.getElementById('choice-close').addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        sendChoice('close');
+        sendChoice(secondaryAction);
       });
 
       setProgress(4, 'Инициализация CoreX…', { phase: 'boot' });
@@ -438,6 +587,11 @@
             phase: payload?.phase,
             error: payload?.error,
             choice: payload?.choice,
+            primaryLabel: payload?.primaryLabel,
+            primaryAction: payload?.primaryAction,
+            secondaryLabel: payload?.secondaryLabel,
+            secondaryAction: payload?.secondaryAction,
+            install: payload?.install,
           });
         });
       }

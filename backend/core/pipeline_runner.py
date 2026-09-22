@@ -38,6 +38,46 @@ if TYPE_CHECKING:
 
 MEMORY_REL_PATH = "chat/project_memory.md"
 
+_DUMP_MARKERS = (
+    "```",
+    "<!DOCTYPE",
+    "<html",
+    "Can't initialize",
+    "Summarization failed",
+    "<<<<<<<",
+    "file not found error",
+)
+
+
+def clip_pipeline_summary(text: str, *, limit: int = 180) -> str:
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    if any(marker.lower() in raw.lower() for marker in _DUMP_MARKERS):
+        label = raw.split(":", 1)[0].strip()
+        if label and len(label) < 80:
+            return f"{label}: готово"
+        return "Этап готов"
+    one = " ".join(raw.split())
+    if len(one) > limit:
+        return one[: limit - 1] + "…"
+    return one
+
+
+def compact_pipeline_final(step_summaries: list[str]) -> str:
+    lines = [clip_pipeline_summary(item) for item in step_summaries]
+    lines = [item for item in lines if item]
+    if not lines:
+        return "Конвейер готов."
+    return "Конвейер готов.\n" + "\n".join(lines)
+
+
+def _pipeline_ops(orchestrator: "CoreXOrchestrator", text: str) -> None:
+    """Служебные строки конвейера — в thinking/trace, не пузырём в чат."""
+    label = (text or "").strip()
+    if label:
+        orchestrator._broadcast_thinking(label)
+
 
 def _pipeline_json_target(raw_actor: str, *, files_written: set[str] | None = None) -> str | None:
     agent = (raw_actor or "").replace("agent:", "").lower()
@@ -89,7 +129,7 @@ async def run_team_pipeline(
         orchestrator._broadcast_thinking(local_profile.hint_ru)
         suggestion = local_team_suggestion_ru(active, pipeline_id)
         if suggestion:
-            orchestrator._broadcast("chat", "CoreX", suggestion)
+            _pipeline_ops(orchestrator, suggestion)
 
     steps = pipeline.get("steps") or []
     if not steps:
@@ -148,11 +188,10 @@ async def run_team_pipeline(
         )
     knowledge = build_knowledge_bundle(active_root, user_task)
     if unlimited:
-        orchestrator._broadcast("chat", "CoreX", "Лимиты отключены (эксперимент).")
+        _pipeline_ops(orchestrator, "Лимиты отключены (эксперимент).")
     elif not online_mode:
-        orchestrator._broadcast(
-            "chat",
-            "CoreX",
+        _pipeline_ops(
+            orchestrator,
             (
                 f"{device.summary_ru()}. "
                 f"Лимиты конвейера: ходы {budget.max_total_turns}, "
@@ -160,8 +199,7 @@ async def run_team_pipeline(
             ),
         )
     if knowledge.text:
-        orchestrator._broadcast_thinking(knowledge.summary_ru())
-        orchestrator._broadcast("chat", "CoreX", knowledge.summary_ru())
+        _pipeline_ops(orchestrator, knowledge.summary_ru())
     orchestrator._broadcast_thinking(
         f"Конвейер «{pipeline.get('name', pipeline_id)}»: {len(steps)} этапов. {budget.status_line()}"
     )
@@ -198,7 +236,7 @@ async def run_team_pipeline(
             orchestrator._broadcast_thinking(
                 f"── Этап {index}/{len(steps)}: {label} ({limit_label}) ──"
             )
-            orchestrator._broadcast("chat", "CoreX", f"Этап {index}: {label}")
+            _pipeline_ops(orchestrator, f"Этап {index}: {label}")
             orchestrator._broadcast_trace(
                 "pipeline",
                 "step_start",
@@ -385,6 +423,20 @@ async def run_team_pipeline(
             if local_profile and local_profile.relax_verification:
                 require_verification = False
 
+            if web_task_step and (_is_designer_actor(raw_actor) or _is_developer_actor(raw_actor)):
+                created = ensure_design_scaffold(
+                    active_root,
+                    user_task=user_task,
+                    app_root=app_root,
+                )
+                for path in created:
+                    orchestrator._broadcast("chat", "CoreX", f"Файл изменён: {path}")
+                from core.design_skill_runtime import design_skill_digest
+
+                digest = design_skill_digest(active_root)
+                if digest:
+                    step_prompt += f"\n{digest}\n"
+
             reply = await orchestrator._run_agent_loop(
                 current_prompt=step_prompt,
                 llm_history=step_history,
@@ -402,9 +454,9 @@ async def run_team_pipeline(
             )
 
             if reply:
-                step_summaries.append(f"{label}: {reply}")
+                step_summaries.append(clip_pipeline_summary(f"{label}: {reply}"))
             else:
-                step_summaries.append(f"{label}: этап завершён (лимит или без отчёта)")
+                step_summaries.append(f"{label}: этап завершён")
 
             if web_task_step and _is_designer_actor(raw_actor):
                 validation = validate_design_handoff(active_root, app_root=app_root)
@@ -415,11 +467,12 @@ async def run_team_pipeline(
                         app_root=app_root,
                     )
                     if created:
-                        orchestrator._broadcast(
-                            "chat",
-                            "CoreX",
-                            f"Design fallback: созданы файлы — {', '.join(created)}",
-                        )
+                        for path in created:
+                            orchestrator._broadcast(
+                                "chat",
+                                "CoreX",
+                                f"Файл изменён: {path}",
+                            )
                     validation = validate_design_handoff(active_root, app_root=app_root)
                 if validation.ok:
                     step_summaries[-1] = (
@@ -441,8 +494,17 @@ async def run_team_pipeline(
             if budget.stop_reason() and budget.turns_used >= budget.max_total_turns:
                 break
 
-        final = "Конвейер завершён.\n" + "\n".join(step_summaries)
-        final += f"\n\n{budget.status_line()}"
+        if is_web_site_task(
+            user_task,
+            coding_language=getattr(orchestrator, "_coding_language", "auto"),
+        ):
+            from core.web_delivery_layers import salvage_web_project
+
+            salvaged = salvage_web_project(active_root, user_task=user_task)
+            for path in salvaged:
+                orchestrator._broadcast("chat", "CoreX", f"Файл изменён: {path}")
+
+        final = compact_pipeline_final(step_summaries)
         orchestrator._broadcast("chat", "CoreX Status", final)
         conversation.append({"role": "assistant", "content": final})
         save_history(active_root, conversation)

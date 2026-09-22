@@ -44,9 +44,9 @@ def developer_layers_prompt_ru(*, user_task: str) -> str:
         "Только style.css (НЕ styles.css). Один stylesheet.\n"
         "HTML: <link style.css>, <script src=\"script.js\" defer>, hero CTA, section id=.\n"
         "Title/logo/h1 — короткое имя бренда, НЕ текст задания.\n"
-        "CSS: тёмный фон #0b1020, gradient hero, .container, cards, hover, @media.\n"
+        "CSS: токены из design-system/MASTER.md (скилл ui-ux-pro-max), gradient hero, cards, @media.\n"
         "JS: mobile nav + smooth scroll + CTA + ещё один эффект. Не done без script.js.\n"
-        f"Brand: {BRAND_PRIMARY}, {BRAND_ACCENT}.\n"
+        "Не подставляй #9A5EFF/#00D2FF, если в MASTER другие hex.\n"
     )
 
 
@@ -54,32 +54,52 @@ def qa_web_polish_prompt_ru() -> str:
     return (
         "\n=== QA WEB POLISH ===\n"
         "1) view_file index.html, style.css, script.js\n"
-        "2) Если нет script.js / слабый CSS / белый фон — допиши файлы\n"
+        "2) Если нет script.js / слабый CSS / белый фон — допиши файлы по MASTER.md\n"
         "3) nav href=#id должны совпадать с section id. Отчёт на русском.\n"
     )
 
 
-def starter_style_css(*, title: str = "CoreX Site") -> str:
-    """Креативная CSS-основа (тёмная тема, hero, карточки)."""
+def _hex_rgb(hex_color: str) -> str:
+    h = (hex_color or "").strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(ch * 2 for ch in h)
+    if len(h) != 6:
+        return "154, 94, 255"
+    try:
+        return f"{int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}"
+    except ValueError:
+        return "154, 94, 255"
+
+
+def starter_style_css(*, title: str = "CoreX Site", tokens=None) -> str:
+    """Креативная CSS-основа; цвета/шрифты из скилла ui-ux-pro-max, если есть."""
+    from core.design_skill_runtime import with_fallback
+
+    t = with_fallback(tokens)
     safe_title = title.replace('"', "'")[:60]
-    return f"""/* {safe_title} */
+    brand_rgb = _hex_rgb(t.primary)
+    accent_rgb = _hex_rgb(t.accent)
+    bg_rgb = _hex_rgb(t.background)
+    heading = t.heading_font.replace('"', "")
+    body = t.body_font.replace('"', "")
+    return f"""/* {safe_title} · {t.style_name or t.source} */
 :root {{
-  --brand: {BRAND_PRIMARY};
-  --accent: {BRAND_ACCENT};
-  --bg: #0b1020;
-  --surface: #151c2e;
-  --text: #e8eef7;
-  --muted: #94a3b8;
+  --brand: {t.primary};
+  --accent: {t.accent};
+  --bg: {t.background};
+  --surface: {t.surface};
+  --text: {t.text};
+  --muted: {t.muted};
   --radius: 14px;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }}
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: "{body}", system-ui, sans-serif;
   background:
-    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(154, 94, 255, 0.35), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(0, 210, 255, 0.2), transparent),
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba({brand_rgb}, 0.35), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba({accent_rgb}, 0.2), transparent),
     var(--bg);
   color: var(--text);
   line-height: 1.65;
@@ -88,14 +108,14 @@ body {{
 .site-header {{
   position: sticky; top: 0; z-index: 20;
   backdrop-filter: blur(12px);
-  background: rgba(11, 16, 32, 0.85);
-  border-bottom: 1px solid rgba(154, 94, 255, 0.25);
+  background: rgba({bg_rgb}, 0.85);
+  border-bottom: 1px solid rgba({brand_rgb}, 0.25);
 }}
 .nav {{
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; padding: 14px 0;
 }}
-.logo {{ font-weight: 800; letter-spacing: 0.04em; color: #fff; text-decoration: none; }}
+.logo {{ font-family: "{heading}", system-ui, sans-serif; font-weight: 800; letter-spacing: 0.04em; color: #fff; text-decoration: none; }}
 .nav-links {{ display: flex; gap: 18px; list-style: none; margin: 0; padding: 0; }}
 .nav-links a {{ color: var(--muted); text-decoration: none; font-weight: 600; }}
 .nav-links a:hover {{ color: var(--accent); }}
@@ -105,11 +125,12 @@ body {{
 }}
 .hero {{
   padding: 72px 0 56px;
-  background: linear-gradient(135deg, rgba(154, 94, 255, 0.35), rgba(0, 210, 255, 0.12));
+  background: linear-gradient(135deg, rgba({brand_rgb}, 0.35), rgba({accent_rgb}, 0.12));
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }}
 .hero h1 {{
   margin: 0 0 12px;
+  font-family: "{heading}", system-ui, sans-serif;
   font-size: clamp(2rem, 4vw, 3.2rem);
   line-height: 1.15;
 }}
@@ -119,7 +140,7 @@ body {{
   padding: 12px 20px; border-radius: 999px; border: none; cursor: pointer;
   background: linear-gradient(90deg, var(--brand), var(--accent));
   color: #081018; font-weight: 700; text-decoration: none;
-  box-shadow: 0 10px 30px rgba(154, 94, 255, 0.35);
+  box-shadow: 0 10px 30px rgba({brand_rgb}, 0.35);
   transition: transform 0.2s ease, filter 0.2s ease;
 }}
 .btn:hover {{ transform: translateY(-2px); filter: brightness(1.08); }}
@@ -131,18 +152,18 @@ body {{
   background: var(--surface); border-radius: var(--radius); padding: 22px;
   box-shadow: var(--shadow); border: 1px solid rgba(255, 255, 255, 0.05);
 }}
-.card h2 {{ margin-top: 0; font-size: 1.2rem; }}
+.card h2 {{ margin-top: 0; font-size: 1.2rem; font-family: "{heading}", system-ui, sans-serif; }}
 .card p {{ color: var(--muted); margin-bottom: 0; }}
 .site-footer {{
   padding: 28px 0; text-align: center; color: var(--muted);
-  border-top: 1px solid rgba(154, 94, 255, 0.2);
+  border-top: 1px solid rgba({brand_rgb}, 0.2);
 }}
 @media (max-width: 800px) {{
   .nav-toggle {{ display: inline-flex; }}
   .nav-links {{
     display: none; position: absolute; left: 20px; right: 20px; top: 64px;
-    flex-direction: column; background: #12182a; padding: 16px;
-    border-radius: 12px; border: 1px solid rgba(154, 94, 255, 0.3);
+    flex-direction: column; background: {t.surface}; padding: 16px;
+    border-radius: 12px; border: 1px solid rgba({brand_rgb}, 0.3);
   }}
   .nav-links.open {{ display: flex; }}
   .grid {{ grid-template-columns: 1fr; }}
@@ -150,7 +171,10 @@ body {{
 """
 
 
-def starter_index_html(*, title: str, hero: str, nav_labels: list[str] | None = None) -> str:
+def starter_index_html(*, title: str, hero: str, nav_labels: list[str] | None = None, tokens=None) -> str:
+    from core.design_skill_runtime import google_fonts_href, with_fallback
+
+    t = with_fallback(tokens)
     labels = nav_labels or ["О нас", "Мероприятия", "Контакты"]
     ids = ["about", "events", "contact"]
     nav_items = "".join(
@@ -159,13 +183,23 @@ def starter_index_html(*, title: str, hero: str, nav_labels: list[str] | None = 
     )
     safe_title = title.replace("<", "").replace(">", "")[:80]
     safe_hero = hero.replace("<", "").replace(">", "")[:120]
+    fonts = google_fonts_href(t)
+    fonts_link = (
+        f'  <link rel="preconnect" href="https://fonts.googleapis.com">\n'
+        f'  <link rel="stylesheet" href="{fonts}">\n'
+        if fonts
+        else ""
+    )
+    subtitle = "Комьюнити геймеров и разработчиков: турниры, стримы и мастер-классы."
+    if t.style_name:
+        subtitle = f"{t.style_name}. {subtitle}"
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{safe_title}</title>
-  <link rel="stylesheet" href="style.css">
+{fonts_link}  <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -181,7 +215,7 @@ def starter_index_html(*, title: str, hero: str, nav_labels: list[str] | None = 
   <section class="hero">
     <div class="container">
       <h1>{safe_hero}</h1>
-      <p>Комьюнити геймеров и разработчиков: турниры, стримы и мастер-классы.</p>
+      <p>{subtitle}</p>
       <a class="btn" href="#events" data-cta>Записаться</a>
     </div>
   </section>
@@ -240,13 +274,17 @@ document.addEventListener("DOMContentLoaded", () => {{
 """
 
 
-def is_stub_style_css(content: str) -> bool:
+def is_stub_style_css(content: str, *, tokens=None) -> bool:
     text = (content or "").strip()
     if len(text) < CSS_MIN_CHARS:
         return True
     required = (":root", "body", "header", "nav", "footer", ".container")
     if not all(token in text for token in required):
         return True
+    if tokens is not None:
+        primary = getattr(tokens, "primary", "") or ""
+        if primary and primary.lower() in text.lower() and "gradient" in text.lower():
+            return False
     # Слишком «светлый/плоский» сайт без атмосферы
     dark_or_gradient = any(
         token in text.lower()
@@ -368,17 +406,42 @@ def infer_page_title(user_task: str) -> str:
     return cleaned[:80] if cleaned else "CoreX Club"
 
 
-def maybe_autofill_salvaged_web(path: str, content: str, *, user_task: str) -> str:
+def salvage_web_project(project_root: Path, *, user_task: str) -> list[str]:
+    """Если Aider оставил серую заглушку — заменить лендингом по токенам скилла."""
+    from core.design_skill_runtime import load_project_design_tokens
+
+    root = Path(project_root)
+    tokens = load_project_design_tokens(root)
+    changed: list[str] = []
+    for name in ("index.html", "style.css", "script.js"):
+        path = root / name
+        try:
+            body = path.read_text(encoding="utf-8") if path.is_file() else ""
+        except OSError:
+            body = ""
+        filled = maybe_autofill_salvaged_web(name, body, user_task=user_task, tokens=tokens)
+        if not filled or filled == body:
+            continue
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(filled, encoding="utf-8")
+        except OSError:
+            continue
+        changed.append(name)
+    return changed
+
+
+def maybe_autofill_salvaged_web(path: str, content: str, *, user_task: str, tokens=None) -> str:
     """Подменить слишком короткую заглушку на стартовый шаблон CoreX."""
     rel = (path or "").replace("\\", "/").lower()
     title = infer_page_title(user_task)
-    if rel.endswith(".css") and is_stub_style_css(content):
-        return starter_style_css(title=title)
+    if rel.endswith(".css") and is_stub_style_css(content, tokens=tokens):
+        return starter_style_css(title=title, tokens=tokens)
     if rel.endswith(".html") and (
         len(content or "") < HTML_MIN_CHARS or "script.js" not in (content or "").lower()
     ):
         if len(content or "") < HTML_MIN_CHARS:
-            return starter_index_html(title=title, hero=title)
+            return starter_index_html(title=title, hero=title, tokens=tokens)
     if rel.endswith(".js") and is_stub_script_js(content):
         return starter_script_js(title=title)
     return content

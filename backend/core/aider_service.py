@@ -10,16 +10,117 @@ import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from core.llm_runtime import ActiveLlm
 
 LineCallback = Callable[[str], Awaitable[None] | None]
+AiderLineKind = Literal["reply", "file", "noise"]
 
 _EDITED_RE = re.compile(
     r"(?:Applied edit to|Wrote|Created|Updated)\s+[`'\"]?([^\s`'\"]+)",
     re.I,
 )
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_FENCE_START = re.compile(r"^<{5,}\s*SEARCH|^<{7}")
+_FENCE_END = re.compile(r"^>{5,}\s*REPLACE|^>{7}")
+_NOISE_RE = re.compile(
+    r"^(?:"
+    r"Aider v|"
+    r"Main model:|"
+    r"Weak model:|"
+    r"Model:|"
+    r"Git repo|"
+    r"Repo-map|"
+    r"Restoring|"
+    r"Added .+ to the chat|"
+    r"Tokens:|"
+    r"Cost:|"
+    r"https?://|"
+    r"Use /|"
+    r"Warning:|"
+    r"litellm|"
+    r"COMMIT|"
+    r"Commit |"
+    r"Skipped|"
+    r"skipped \(|"
+    r"Allow |"
+    r"Detected |"
+    r"Initial repo|"
+    r"Scanning repo|"
+    r"Using .+ edit format|"
+    r"diff edit format|"
+    r"udiff|"
+    r"Whole file|"
+    r"with whole edit format|"
+    r"Can't initialize|"
+    r"prompt toolkit|"
+    r"No Windows console|"
+    r"Are you running|"
+    r"file not found error|"
+    r"Dropping .+ from the chat|"
+    r"Has it been deleted|"
+    r"Summarization failed|"
+    r"summarizer unexpectedly|"
+    r"Command '"
+    r")",
+    re.I,
+)
+_FILENAME_ONLY = re.compile(
+    r"^[\w./\\-]+\.(py|js|mjs|cjs|ts|tsx|jsx|html|css|json|md|vue|go|rs)$",
+    re.I,
+)
+_CODE_LINE = re.compile(
+    r"^(?:"
+    r"</?[a-zA-Z!][\w:-]*|"
+    r"[.#@]?[a-zA-Z][\w-]*\s*\{|"
+    r"@@\s|"
+    r"diff --git|"
+    r"index [0-9a-f]{6,}|"
+    r"[+-]{3}\s|"
+    r"#{1,6}\s+\S+\.(html|css|js|mjs|cjs|ts|tsx|jsx|py|md)\b"
+    r")",
+    re.I,
+)
+_CSS_PROP = re.compile(r"^[a-z-]+\s*:.+;$", re.I)
+_NOISE_INLINE = re.compile(
+    r"file not found error|"
+    r"Can't initialize|"
+    r"prompt toolkit|"
+    r"No Windows console|"
+    r"Dropping .+ from the chat|"
+    r"Has it been deleted|"
+    r"Summarization failed|"
+    r"summarizer unexpectedly|"
+    r"with whole edit format",
+    re.I,
+)
+_DUMP_MARKERS = (
+    "```",
+    "<!DOCTYPE",
+    "<html",
+    "Can't initialize",
+    "Summarization failed",
+    "<<<<<<<",
+    "file not found error",
+)
+_REPLY_MAX_CHARS = 800
+_REPLY_MAX_LINES = 12
+_MD_FENCE_LANGS = frozenset({
+    "",
+    "html",
+    "css",
+    "js",
+    "javascript",
+    "diff",
+    "python",
+    "json",
+    "md",
+    "xml",
+    "bash",
+    "ts",
+    "tsx",
+})
 
 
 @dataclass
@@ -39,6 +140,94 @@ class AiderRunResult:
     model: str = ""
     edited_files: list[str] = field(default_factory=list)
     error: str | None = None
+
+
+@dataclass
+class AiderChatEvent:
+    kind: AiderLineKind
+    text: str = ""
+    path: str = ""
+
+
+def strip_aider_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text or "")
+
+
+class AiderChatFilter:
+    """Режет stdout Aider: проза в чат, файлы отдельно, баннеры/диффы — шум."""
+
+    def __init__(self) -> None:
+        self.in_edit_block = False
+        self.in_md_fence = False
+        self.reply_parts: list[str] = []
+        self.files: list[str] = []
+        self._reply_chars = 0
+
+    def _noise(self, text: str) -> AiderChatEvent:
+        return AiderChatEvent("noise", text=text[:200])
+
+    def feed(self, raw: str) -> AiderChatEvent | None:
+        line = strip_aider_ansi(raw).rstrip()
+        text = line.strip()
+        if not text:
+            return None
+        if text.startswith("```"):
+            lang = text.strip("`").strip().lower()
+            if self.in_md_fence:
+                self.in_md_fence = False
+            elif lang in _MD_FENCE_LANGS:
+                self.in_md_fence = True
+            return self._noise(text)
+        if _FENCE_START.search(text):
+            self.in_edit_block = True
+            return self._noise(text)
+        if self.in_edit_block or self.in_md_fence:
+            if _FENCE_END.search(text) or text.startswith(">>>>>>>"):
+                self.in_edit_block = False
+            return self._noise(text)
+        if text.startswith("> "):
+            return self._noise(text)
+        file_match = _EDITED_RE.search(text)
+        if file_match:
+            path = file_match.group(1).strip().rstrip(".,;")
+            if path and path not in self.files:
+                self.files.append(path)
+            return AiderChatEvent("file", path=path, text=text)
+        if _NOISE_RE.search(text) or _NOISE_INLINE.search(text):
+            return self._noise(text)
+        if _FILENAME_ONLY.match(text):
+            return self._noise(text)
+        if text.startswith(("def ", "class ", "import ", "from ")):
+            return self._noise(text)
+        if _CODE_LINE.search(text):
+            return self._noise(text)
+        if _CSS_PROP.search(text):
+            return self._noise(text)
+        if (
+            self._reply_chars >= _REPLY_MAX_CHARS
+            or len(self.reply_parts) >= _REPLY_MAX_LINES
+        ):
+            return self._noise(text)
+        self.reply_parts.append(text)
+        self._reply_chars += len(text) + 1
+        return AiderChatEvent("reply", text=text)
+
+    @property
+    def reply_text(self) -> str:
+        return "\n".join(self.reply_parts).strip()
+
+
+def public_aider_reply(text: str, edited: list[str] | None = None) -> str:
+    """Короткий ответ в чат: без исходников, баннеров и диффов."""
+    files = [item for item in (edited or []) if item]
+    blob = (text or "").strip()
+    if blob and not any(marker.lower() in blob.lower() for marker in _DUMP_MARKERS):
+        if len(blob) > _REPLY_MAX_CHARS:
+            return blob[: _REPLY_MAX_CHARS - 1] + "…"
+        return blob
+    if files:
+        return f"Готово: {', '.join(files[:8])}."
+    return "Шаг завершён."
 
 
 def _repo_root() -> Path:
@@ -76,9 +265,8 @@ def find_aider_command() -> list[str] | None:
 def aider_missing_message() -> str:
     return (
         "Aider не найден. На Python 3.14 пакет aider-chat не ставится — "
-        "нужен sidecar 3.11/3.12. Запусти scripts\\ensure_aider_venv.bat "
-        "или: py -3.11 -m venv .venv-aider && .venv-aider\\Scripts\\pip install -r "
-        "backend\\requirements-aider.txt"
+        "нужен sidecar 3.11/3.12. При запуске CoreX предложит скачать Python 3.11 "
+        "на загрузочном экране. Или вручную: scripts\\ensure_aider_venv.bat"
     )
 
 
@@ -142,6 +330,8 @@ def build_aider_message(
         "Ты работаешь внутри CoreX через Aider.",
         "Прави правила в файлах проекта. Не вызывай JSON-инструменты CoreX.",
         "Не делай git commit — коммиты только по явной просьбе пользователя.",
+        "В ответ не вставляй полный HTML/CSS/JS, markdown-фенсы и diff — только 2–4 предложения, что сделано.",
+        "Для сайта: тёмный лендинг (#0b1020), hero, карточки, CTA, index.html + style.css + script.js. Не серый Arial.",
         "Отвечай кратко по-русски после правок.",
     ]
     if language_hint:
@@ -220,6 +410,7 @@ def build_aider_launch(
     message: str,
     chat_mode: str | None = None,
     read_files: list[str] | None = None,
+    edit_files: list[str] | None = None,
     for_question: bool = False,
 ) -> AiderLaunch:
     cmd = find_aider_command()
@@ -247,6 +438,8 @@ def build_aider_launch(
         "--no-pretty",
         "--no-stream",
         "--subtree-only",
+        "--skip-sanity-check-repo",
+        "--no-check-update",
         "--exit",
     ]
     if mode:
@@ -259,12 +452,21 @@ def build_aider_launch(
         clean = str(rel or "").replace("\\", "/").strip()
         if clean:
             argv.extend(["--read", clean])
+    if not for_question:
+        for rel in edit_files or []:
+            clean = str(rel or "").replace("\\", "/").strip()
+            if clean:
+                argv.extend(["--file", clean])
     env = {
         **env,
         "GIT_EDITOR": "true",
         "EDITOR": "true",
         "VISUAL": "true",
         "AIDER_NO_BROWSER": "1",
+        "AIDER_PRETTY": "0",
+        "TERM": "dumb",
+        "NO_COLOR": "1",
+        "PYTHONUNBUFFERED": "1",
     }
     return AiderLaunch(argv=argv, env=env, cwd=root, model=model)
 

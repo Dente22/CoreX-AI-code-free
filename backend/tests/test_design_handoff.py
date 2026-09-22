@@ -32,7 +32,7 @@ def test_collect_and_format_bundle(tmp_path):
     assert any("MASTER.md" in key for key in bundle)
     prompt = format_design_bundle_for_prompt(bundle)
     assert "FILE:" in prompt
-    assert "Design Spec" in prompt
+    assert "Design Spec" in prompt or "Design System Master" in prompt or "Color Palette" in prompt
 
 
 def test_starter_master_has_brand_colors():

@@ -115,6 +115,28 @@ def detect_project_languages(project_root: Path, *, max_scan: int = 120) -> list
     return [lang for lang in order if lang in found]
 
 
+def infer_knowledge_languages(project_root: Path, user_task: str) -> list[str]:
+    """Язык базы знаний по задаче, а не по случайным файлам в папке (snake.py ≠ сайт)."""
+    detected = detect_project_languages(project_root)
+    task = (user_task or "").lower()
+    try:
+        from core.web_delivery_layers import is_web_site_task
+
+        if is_web_site_task(user_task):
+            return ["web"]
+    except Exception:
+        pass
+    if any(marker in task for marker in (".py", "python", "pygame", "tkinter")):
+        return ["python"]
+    if any(marker in task for marker in (".ts", "typescript", "react")):
+        return ["typescript"]
+    if any(marker in task for marker in ("html", ".html", "css", ".css", "javascript", "dom", "сайт")):
+        return ["web"]
+    if detected:
+        return detected
+    return []
+
+
 def resolve_knowledge_context(
     user_task: str,
     persona_id: str | None = None,
@@ -240,13 +262,7 @@ def build_knowledge_bundle(
         return KnowledgeBundle(context="dev", languages=(), sources=(), text="")
 
     context = resolve_knowledge_context(user_task, persona_id, step_role=step_role)
-    languages = detect_project_languages(project_root)
-    if not languages and any(ext in user_task.lower() for ext in (".py", "python", "pygame")):
-        languages = ["python"]
-    if not languages and any(ext in user_task.lower() for ext in (".ts", "typescript", "react", ".js")):
-        languages = ["typescript"]
-    if not languages and any(ext in user_task.lower() for ext in ("html", ".html", "css", ".css", "javascript", "dom")):
-        languages = ["web"]
+    languages = infer_knowledge_languages(project_root, user_task)
 
     budget = char_cap if char_cap is not None else _char_budget()
     lang_key = ",".join(languages)

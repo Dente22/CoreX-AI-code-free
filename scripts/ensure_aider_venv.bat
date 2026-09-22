@@ -4,21 +4,22 @@ cd /d "%~dp0.."
 set "VENV=%CD%\.venv-aider"
 set "REQ=%CD%\backend\requirements-aider.txt"
 
-where py >nul 2>&1
-if errorlevel 1 (
-  echo [CoreX] Нужен launcher py и Python 3.11 или 3.12 для Aider.
+if not defined COREX_AIDER_PYTHON (
+  call "%~dp0..\_corex-common.bat" :FindAiderPython
+)
+
+if not defined COREX_AIDER_PYTHON (
+  echo [CoreX] Нужен Python 3.11 или 3.12 для Aider ^(не 3.13/3.14^).
+  echo [CoreX] Запусти start-corex.bat — предложит скачать Python 3.11.
+  echo [CoreX] Или вручную: https://www.python.org/downloads/release/python-3119/
   exit /b 1
 )
 
 if not exist "%VENV%\Scripts\python.exe" (
-  echo [CoreX] Создаю .venv-aider на Python 3.11...
-  py -3.11 -m venv "%VENV%" 2>nul
+  echo [CoreX] Создаю .venv-aider: %COREX_AIDER_PYTHON%
+  "%COREX_AIDER_PYTHON%" -m venv "%VENV%"
   if errorlevel 1 (
-    echo [CoreX] Пробую Python 3.12...
-    py -3.12 -m venv "%VENV%" 2>nul
-  )
-  if errorlevel 1 (
-    echo [CoreX] Не найден Python 3.11/3.12. Поставь с python.org ^(3.11^) и повтори.
+    echo [CoreX] Не удалось создать .venv-aider
     exit /b 1
   )
 )

@@ -1,5 +1,5 @@
 {
-  "provider_id": "ollama-qwen",
-  "model_name": "qwen2.5-coder:3b",
+  "provider_id": "ollama-qwen-7b",
+  "model_name": "qwen2.5-coder:7b",
   "provider_type": "ollama"
 }

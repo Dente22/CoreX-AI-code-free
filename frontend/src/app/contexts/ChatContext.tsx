@@ -70,6 +70,7 @@ import type { TraceErrorRecord, TraceEvent } from '../types/trace';
 import { fetchTraceErrors } from '../utils/traceApi';
 import type { ChatMessage } from '../types/chatMessage';
 import { isCorexInternalPath } from '../utils/corexInternal';
+import { applyChatDelta, finalizeStreaming, isOperationalChatNoise, shouldSkipDuplicateChat } from '../utils/chatStream';
 
 export type { ChatMessage };
 
@@ -709,6 +710,23 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
             if (inflightTasksRef.current === 0) {
               setThoughts([]);
             }
+            setMessages((prev) => finalizeStreaming(prev));
+            return;
+          }
+
+          if (target === 'chat_delta') {
+            setIsThinking(true);
+            if (codingEngineRef.current === 'aider') {
+              setThoughts([]);
+            }
+            setMessages((prev) => applyChatDelta(prev, text, {
+              model: typeof data.model === 'string' ? data.model.trim() : undefined,
+            }));
+            return;
+          }
+
+          if (target === 'chat_delta_done') {
+            setMessages((prev) => finalizeStreaming(prev));
             return;
           }
 
@@ -722,6 +740,8 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
             if (shouldStopThinking(sender, text)) {
               setIsThinking(false);
               setThoughts([]);
+            } else if (codingEngineRef.current === 'aider') {
+              setThoughts([]);
             }
 
             if (sender.startsWith('System:') || sender === 'CoreX Action') {
@@ -733,20 +753,26 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
               content = text.replace(/^Task finished! -> /, '');
             }
 
-            if (!content.trim()) {
+            if (!content.trim() || isOperationalChatNoise(content)) {
               return;
             }
 
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: createId('msg'),
-                role: 'assistant',
-                content,
-                timestamp: 'только что',
-                ...(typeof data.model === 'string' && data.model.trim() ? { model: data.model.trim() } : {}),
-              },
-            ]);
+            setMessages((prev) => {
+              const finalized = finalizeStreaming(prev);
+              if (shouldSkipDuplicateChat(finalized, content)) {
+                return finalized;
+              }
+              return [
+                ...finalized,
+                {
+                  id: createId('msg'),
+                  role: 'assistant',
+                  content,
+                  timestamp: 'только что',
+                  ...(typeof data.model === 'string' && data.model.trim() ? { model: data.model.trim() } : {}),
+                },
+              ];
+            });
           }
         } catch (error) {
           console.error('[ChatContext] Invalid WebSocket message:', error);

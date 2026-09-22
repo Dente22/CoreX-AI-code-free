@@ -61,6 +61,7 @@ def test_build_message_includes_persona_and_no_json_protocol():
     assert "skill tip" in text
     assert "не делай git commit" in text.lower() or "Не делай git commit" in text
     assert "write_file" not in text
+    assert "не вставляй полный HTML" in text
 
 
 def test_build_launch_disables_autocommit(tmp_path: Path, monkeypatch):
@@ -88,7 +89,10 @@ def test_build_launch_disables_autocommit(tmp_path: Path, monkeypatch):
     assert "--yes-always" in launch.argv
     assert "--exit" in launch.argv
     assert "--subtree-only" in launch.argv
+    assert "--skip-sanity-check-repo" in launch.argv
+    assert "--no-check-update" in launch.argv
     assert "--chat-mode" not in launch.argv
+    assert launch.env.get("TERM") == "dumb"
     assert "--message-file" in launch.argv
     assert launch.model.startswith("ollama_chat/")
 
@@ -123,3 +127,68 @@ def test_run_aider_works_on_selector_loop(tmp_path: Path, monkeypatch):
     result = asyncio.run(_run())
     assert result.ok is True
     assert "aider-ok" in result.stdout
+
+
+def test_aider_chat_filter_keeps_prose_and_hides_diff():
+    from core.aider_service import AiderChatFilter
+
+    filt = AiderChatFilter()
+    kinds = []
+    for line in [
+        "Aider v0.86.1",
+        "Main model: ollama_chat/qwen2.5-coder:7b with diff edit format",
+        "Git repo: .git with 3 files",
+        "> сделай калькулятор",
+        "Соберу калькулятор на tkinter с кнопками.",
+        "calculator.py",
+        "<<<<<<< SEARCH",
+        "=======",
+        "import tkinter as tk",
+        ">>>>>>> REPLACE",
+        "Applied edit to calculator.py",
+        "Tokens: 1.2k sent, 400 received.",
+        "https://aider.chat/docs",
+    ]:
+        event = filt.feed(line)
+        if event:
+            kinds.append(event.kind)
+
+    assert "reply" in kinds
+    assert "file" in kinds
+    assert filt.reply_text == "Соберу калькулятор на tkinter с кнопками."
+    assert filt.files == ["calculator.py"]
+    assert kinds.count("reply") == 1
+    assert "import tkinter" not in filt.reply_text
+    assert "Aider v" not in filt.reply_text
+    assert "Tokens:" not in filt.reply_text
+
+
+def test_aider_chat_filter_hides_html_dump_and_windows_noise():
+    from core.aider_service import AiderChatFilter, public_aider_reply
+
+    filt = AiderChatFilter()
+    for line in [
+        "Can't initialize prompt toolkit: No Windows console found. Are you running cmd.exe?",
+        "Model: ollama_chat/qwen2.5-coder:7b with whole edit format",
+        "D:\\Project\\Test11\\snake.py: file not found error",
+        "Dropping snake.py from the chat.",
+        "Сайт клуба будет тёмным лендингом.",
+        "### index.html",
+        "```html",
+        "<!DOCTYPE html>",
+        "<html lang=\"ru\">",
+        "<body>",
+        "```",
+        "body {",
+        "font-family: Arial, sans-serif;",
+        "Summarization failed for model ollama_chat/qwen2.5-coder:7b",
+        "Applied edit to index.html",
+    ]:
+        filt.feed(line)
+
+    assert filt.reply_text == "Сайт клуба будет тёмным лендингом."
+    assert filt.files == ["index.html"]
+    assert "<!DOCTYPE" not in filt.reply_text
+    assert "prompt toolkit" not in filt.reply_text
+    assert public_aider_reply(filt.reply_text, filt.files) == "Сайт клуба будет тёмным лендингом."
+    assert public_aider_reply("<!DOCTYPE html>\n<html>", ["index.html"]) == "Готово: index.html."

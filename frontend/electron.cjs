@@ -3,7 +3,8 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const http = require('http');
-const { spawn } = require('child_process');
+const https = require('https');
+const { spawn, execFileSync } = require('child_process');
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard } = require('electron');
 let autoUpdater = null;
 try {
@@ -18,6 +19,8 @@ const {
   shouldEnableAutoUpdates,
   resolveBackendHealthTimeoutMs,
   isOllamaLaunchSkippable,
+  PYTHON311_INSTALLER_URL,
+  probeAiderLaunchEnv,
   CHROME_USER_AGENT,
   isHttpUrl,
   shouldOpenAuthInSystemBrowser,
@@ -583,15 +586,413 @@ function httpGetJson(url, timeoutMs = 4000) {
   });
 }
 
-async function waitForSplashOllamaChoice() {
+async function waitForSplashChoice() {
   return new Promise((resolve) => {
     const finish = (action) => {
       ipcMain.removeListener('splash-choice', onChoice);
-      resolve(action === 'continue' ? 'continue' : 'close');
+      resolve(String(action || 'skip'));
     };
     const onChoice = (_event, action) => finish(action);
     ipcMain.once('splash-choice', onChoice);
   });
+}
+
+function probeAiderEnvNow() {
+  return probeAiderLaunchEnv({
+    projectRoot: ROOT_DIR,
+    platform: process.platform,
+    localAppData: process.env.LOCALAPPDATA || '',
+    programFiles: process.env.ProgramFiles || '',
+    joinPath: path.join,
+    existsSync: fs.existsSync,
+    execFileSync,
+  });
+}
+
+function refreshPython311Path() {
+  const local = process.env.LOCALAPPDATA || '';
+  const pf = process.env.ProgramFiles || '';
+  const extras = [
+    path.join(local, 'Programs', 'Python', 'Python311'),
+    path.join(local, 'Programs', 'Python', 'Python311', 'Scripts'),
+    path.join(local, 'Programs', 'Python', 'Launcher'),
+    path.join(pf, 'Python311'),
+    path.join(pf, 'Python311', 'Scripts'),
+  ].filter(Boolean);
+  process.env.PATH = `${extras.join(path.delimiter)}${path.delimiter}${process.env.PATH || ''}`;
+}
+
+function downloadHttpsFile(url, destPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const go = (currentUrl, hops) => {
+      if (hops > 5) {
+        reject(new Error('Слишком много редиректов при скачивании Python'));
+        return;
+      }
+      const client = currentUrl.startsWith('http://') ? http : https;
+      const req = client.get(
+        currentUrl,
+        { headers: { 'User-Agent': 'CoreX' } },
+        (res) => {
+          const loc = res.headers.location;
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && loc) {
+            res.resume();
+            const next = new URL(loc, currentUrl).toString();
+            go(next, hops + 1);
+            return;
+          }
+          if (res.statusCode !== 200) {
+            res.resume();
+            reject(new Error(`Не удалось скачать Python (HTTP ${res.statusCode})`));
+            return;
+          }
+          const total = Number(res.headers['content-length'] || 0);
+          let got = 0;
+          const file = fs.createWriteStream(destPath);
+          res.on('data', (chunk) => {
+            got += chunk.length;
+            if (total > 0 && typeof onProgress === 'function') {
+              onProgress(Math.round((got / total) * 100));
+            }
+          });
+          res.pipe(file);
+          file.on('finish', () => file.close(() => resolve(destPath)));
+          file.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+    };
+    go(url, 0);
+  });
+}
+
+function spawnWait(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd || ROOT_DIR,
+      env: options.env || process.env,
+      windowsHide: options.windowsHide !== false,
+      stdio: options.stdio || ['ignore', 'pipe', 'pipe'],
+    });
+    let tail = '';
+    const onChunk = (buf) => {
+      const text = String(buf || '');
+      tail = (text.trim().split(/\r?\n/).pop() || tail).slice(0, 180);
+      if (typeof options.onLine === 'function' && tail) {
+        options.onLine(tail);
+      }
+    };
+    child.stdout?.on('data', onChunk);
+    child.stderr?.on('data', onChunk);
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(tail);
+        return;
+      }
+      reject(new Error(tail || `${command} завершился с кодом ${code}`));
+    });
+  });
+}
+
+function backendVenvPython() {
+  const win = path.join(ROOT_DIR, '.venv', 'Scripts', 'python.exe');
+  const legacy = path.join(ROOT_DIR, '.venv-1', 'Scripts', 'python.exe');
+  if (fs.existsSync(win)) return win;
+  if (fs.existsSync(legacy)) return legacy;
+  return '';
+}
+
+async function ensureBackendVenvIfMissing() {
+  if (backendVenvPython()) {
+    return;
+  }
+  const probe = probeAiderEnvNow();
+  const py = probe.pythonPath;
+  if (!py) {
+    return;
+  }
+  const venvDir = path.join(ROOT_DIR, '.venv');
+  const venvPy = path.join(venvDir, 'Scripts', 'python.exe');
+  updateSplash({
+    progress: 48,
+    message: 'Создаю среду Python для CoreX…',
+    phase: 'python311',
+    install: {
+      title: 'Python',
+      step: 'Создаю .venv…',
+      percent: null,
+    },
+  });
+  await spawnWait(py, ['-m', 'venv', venvDir]);
+  if (!fs.existsSync(venvPy)) {
+    return;
+  }
+  process.env.COREX_PYTHON = venvPy;
+  updateSplash({
+    progress: 50,
+    message: 'Ставлю зависимости backend…',
+    phase: 'python311',
+    install: {
+      title: 'Python',
+      step: 'pip install -r backend/requirements.txt',
+      percent: null,
+    },
+  });
+  await spawnWait(venvPy, ['-m', 'pip', 'install', '-U', 'pip']);
+  const req = path.join(ROOT_DIR, 'backend', 'requirements.txt');
+  if (fs.existsSync(req)) {
+    await spawnWait(venvPy, ['-m', 'pip', 'install', '-r', req], {
+      onLine: (line) => {
+        updateSplash({
+          progress: 51,
+          message: line,
+          phase: 'python311',
+          install: {
+            title: 'Python',
+            step: line.slice(0, 140),
+            percent: null,
+          },
+        });
+      },
+    });
+  }
+}
+
+async function installPython311FromSplash() {
+  const dest = path.join(os.tmpdir(), 'corex-python-3.11.9-amd64.exe');
+  updateSplash({
+    progress: 28,
+    message: 'Установка Python 3.11',
+    phase: 'python311',
+    choice: null,
+    install: {
+      title: 'Python 3.11',
+      step: 'Скачиваю установщик с python.org…',
+      percent: 0,
+    },
+  });
+  try {
+    await downloadHttpsFile(PYTHON311_INSTALLER_URL, dest, (pct) => {
+      updateSplash({
+        progress: Math.min(44, 28 + Math.floor(pct * 0.16)),
+        message: `Скачиваю Python 3.11… ${pct}%`,
+        phase: 'python311',
+        install: {
+          title: 'Python 3.11',
+          step: 'Скачиваю установщик с python.org…',
+          percent: pct,
+        },
+      });
+    });
+  } catch (error) {
+    launchLog(`Python download failed: ${error?.message || error}`);
+    try {
+      await shell.openExternal('https://www.python.org/downloads/release/python-3119/');
+    } catch {
+      // ignore
+    }
+    updateSplash({
+      progress: 30,
+      message: 'Не удалось скачать Python 3.11. Открыл страницу установки в браузере.',
+      phase: 'python311',
+      install: null,
+    });
+    throw error;
+  }
+
+  updateSplash({
+    progress: 46,
+    message: 'Устанавливаю Python 3.11…',
+    phase: 'python311',
+    install: {
+      title: 'Python 3.11',
+      step: 'Тихая установка в профиль Windows (без отдельного окна)…',
+      percent: null,
+    },
+  });
+  await spawnWait(dest, [
+    '/quiet',
+    'InstallAllUsers=0',
+    'PrependPath=1',
+    'Include_launcher=1',
+    'Include_test=0',
+    'SimpleInstall=1',
+  ], { windowsHide: true });
+  refreshPython311Path();
+  updateSplash({
+    progress: 48,
+    message: 'Python 3.11 установлен',
+    phase: 'python311',
+    install: {
+      title: 'Python 3.11',
+      step: 'Готово. Дальше поставлю Aider.',
+      percent: 100,
+    },
+  });
+  await ensureBackendVenvIfMissing();
+}
+
+async function installAiderFromSplash(pythonPath) {
+  const bat = path.join(ROOT_DIR, 'scripts', 'ensure_aider_venv.bat');
+  updateSplash({
+    progress: 48,
+    message: 'Ставлю Aider в .venv-aider…',
+    phase: 'aider',
+    choice: null,
+    install: {
+      title: 'Aider',
+      step: 'Создаю .venv-aider и качаю aider-chat…',
+      percent: null,
+    },
+  });
+  await spawnWait('cmd.exe', ['/d', '/c', bat], {
+    env: { ...process.env, COREX_AIDER_PYTHON: pythonPath },
+    onLine: (line) => {
+      updateSplash({
+        progress: 52,
+        message: line,
+        phase: 'aider',
+        install: {
+          title: 'Aider',
+          step: line,
+          percent: null,
+        },
+      });
+    },
+  });
+  updateSplash({
+    progress: 54,
+    message: 'Aider установлен',
+    phase: 'aider',
+    install: {
+      title: 'Aider',
+      step: 'Готово',
+      percent: 100,
+    },
+  });
+}
+
+async function ensureAiderFromSplash() {
+  let probe = probeAiderEnvNow();
+  if (probe.ready) {
+    updateSplash({
+      progress: 26,
+      message: 'Aider готов',
+      phase: 'aider',
+      choice: null,
+      install: null,
+    });
+    return;
+  }
+
+  if (probe.need === 'python311') {
+    updateSplash({
+      progress: 24,
+      message:
+        'Для Aider нужен Python 3.11. Основной Python 3.13/3.14 не подходит — пакет aider-chat туда не ставится.',
+      phase: 'python311',
+      choice: 'python311_missing',
+      primaryLabel: 'Установить Python 3.11',
+      primaryAction: 'download',
+      secondaryLabel: 'Продолжить без Aider',
+      secondaryAction: 'skip',
+    });
+    const action = await waitForSplashChoice();
+    if (action !== 'download') {
+      updateSplash({
+        progress: 26,
+        message: 'Продолжаем без Aider. В чате можно выбрать движок CoreX.',
+        phase: 'aider_skipped',
+        choice: null,
+        install: null,
+      });
+      return;
+    }
+    try {
+      await installPython311FromSplash();
+    } catch (error) {
+      updateSplash({
+        progress: 26,
+        message: `Python 3.11 не установился: ${error?.message || error}. Продолжаем без Aider.`,
+        phase: 'aider_skipped',
+        choice: null,
+        install: null,
+      });
+      return;
+    }
+    probe = probeAiderEnvNow();
+    if (probe.need === 'python311' || !probe.pythonPath) {
+      updateSplash({
+        progress: 26,
+        message: 'Python 3.11 установлен. Закройте CoreX и запустите снова, чтобы увидеть его в PATH.',
+        phase: 'aider_skipped',
+        choice: null,
+        install: null,
+      });
+      return;
+    }
+    try {
+      await installAiderFromSplash(probe.pythonPath);
+    } catch (error) {
+      updateSplash({
+        progress: 26,
+        message: `Aider не установился: ${error?.message || error}. Продолжаем без него.`,
+        phase: 'aider_skipped',
+        choice: null,
+        install: null,
+      });
+      return;
+    }
+    updateSplash({
+      progress: 54,
+      message: 'Aider установлен',
+      phase: 'aider',
+      choice: null,
+      install: null,
+    });
+    return;
+  }
+
+  updateSplash({
+    progress: 24,
+    message: 'Aider не найден. Поставить в отдельную среду .venv-aider?',
+    phase: 'aider',
+    choice: 'aider_missing',
+    primaryLabel: 'Установить Aider',
+    primaryAction: 'download',
+    secondaryLabel: 'Продолжить без Aider',
+    secondaryAction: 'skip',
+  });
+  const action = await waitForSplashChoice();
+  if (action !== 'download') {
+    updateSplash({
+      progress: 26,
+      message: 'Продолжаем без Aider',
+      phase: 'aider_skipped',
+      choice: null,
+      install: null,
+    });
+    return;
+  }
+  try {
+    await installAiderFromSplash(probe.pythonPath);
+    updateSplash({
+      progress: 54,
+      message: 'Aider установлен',
+      phase: 'aider',
+      choice: null,
+      install: null,
+    });
+  } catch (error) {
+    updateSplash({
+      progress: 26,
+      message: `Aider не установился: ${error?.message || error}. Продолжаем без него.`,
+      phase: 'aider_skipped',
+      choice: null,
+      install: null,
+    });
+  }
 }
 
 async function waitForSystemReady(port) {
@@ -620,9 +1021,13 @@ async function waitForSystemReady(port) {
           message: lastMessage || 'Ollama не запущена',
           phase: 'ollama_server',
           choice: 'ollama_missing',
+          primaryLabel: 'Продолжить без Ollama',
+          primaryAction: 'continue',
+          secondaryLabel: 'Закрыть',
+          secondaryAction: 'close',
         });
         launchLog('Ollama not running — asking to continue without it');
-        const choice = await waitForSplashOllamaChoice();
+        const choice = await waitForSplashChoice();
         if (choice === 'continue') {
           updateSplash({
             progress: 78,
@@ -701,7 +1106,7 @@ async function createSplashWindow() {
   // composite / never become visible, and the app looks "stuck" on electron .
   splashWindow = new BrowserWindow({
     width: 520,
-    height: 400,
+    height: 460,
     frame: false,
     transparent: false,
     resizable: false,
@@ -979,7 +1384,8 @@ app.whenReady().then(async () => {
     await Promise.all([
       runSplashIntro(),
       (async () => {
-        updateSplash({ progress: 28, message: 'Запуск AI-движка…', phase: 'backend' });
+        await ensureAiderFromSplash();
+        updateSplash({ progress: 28, message: 'Запуск AI-движка…', phase: 'backend', install: null });
         await startBackend();
         backendOk = true;
         launchLog('Backend healthy, waiting for system ready…');

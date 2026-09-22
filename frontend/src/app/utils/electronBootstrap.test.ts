@@ -11,6 +11,7 @@ import {
   shouldOpenInSystemBrowser,
   shouldOpenAuthInSystemBrowser,
   preferIntegratedGpuForUi,
+  probeAiderLaunchEnv,
 } from './electronBootstrap';
 
 describe('resolveProjectRoot', () => {
@@ -228,6 +229,52 @@ describe('isOllamaLaunchSkippable', () => {
 
   it('does not skip other blocked phases', () => {
     expect(isOllamaLaunchSkippable({ ready: false, phase: 'online_config' })).toBe(false);
+  });
+});
+
+describe('probeAiderLaunchEnv', () => {
+  const joinPath = (...parts: string[]) => parts.join('/');
+
+  it('is ready when sidecar aider.exe exists', () => {
+    const result = probeAiderLaunchEnv({
+      projectRoot: 'D:/CoreX',
+      platform: 'win32',
+      joinPath,
+      existsSync: (p) => p === 'D:/CoreX/.venv-aider/Scripts/aider.exe',
+    });
+    expect(result.ready).toBe(true);
+    expect(result.need).toBeNull();
+  });
+
+  it('asks for Python 3.11 when sidecar and 3.11 are missing', () => {
+    const result = probeAiderLaunchEnv({
+      projectRoot: 'D:/CoreX',
+      platform: 'win32',
+      localAppData: 'C:/Users/me/AppData/Local',
+      programFiles: 'C:/Program Files',
+      joinPath,
+      existsSync: () => false,
+      execFileSync: () => {
+        throw new Error('no py');
+      },
+    });
+    expect(result.ready).toBe(false);
+    expect(result.need).toBe('python311');
+  });
+
+  it('asks to install Aider when Python 3.11 is present', () => {
+    const py = 'C:/Users/me/AppData/Local/Programs/Python/Python311/python.exe';
+    const result = probeAiderLaunchEnv({
+      projectRoot: 'D:/CoreX',
+      platform: 'win32',
+      localAppData: 'C:/Users/me/AppData/Local',
+      programFiles: 'C:/Program Files',
+      joinPath,
+      existsSync: (p) => p === py,
+    });
+    expect(result.ready).toBe(false);
+    expect(result.need).toBe('aider');
+    expect(result.pythonPath).toBe(py);
   });
 });
 

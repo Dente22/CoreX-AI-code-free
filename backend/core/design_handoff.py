@@ -216,27 +216,33 @@ def starter_page_index_md(*, user_task: str) -> str:
 """
 
 
-def starter_block_md(*, name: str, user_task: str) -> str:
+def starter_block_md(*, name: str, user_task: str, tokens=None) -> str:
+    from core.design_skill_runtime import with_fallback
+
+    t = with_fallback(tokens)
     title = infer_page_title(user_task)
+    primary = t.primary
+    accent = t.accent
     blocks = {
         "hero": (
             f"# Block: Hero\n\n"
             f"- Заголовок: {title}\n"
-            f"- Фон: gradient {BRAND_PRIMARY} → #6d28d9\n"
+            f"- Фон: gradient {primary} → {accent}\n"
             f"- Padding: 48px 0, text-align left\n"
-            f"- CTA button: accent {BRAND_ACCENT}, radius 12px\n"
+            f"- CTA button: accent {accent}, radius 12px\n"
+            f"- Стиль скилла: {t.style_name or 'из MASTER.md'}\n"
         ),
         "navigation": (
             "# Block: Navigation\n\n"
-            f"- Sticky optional, bg {BRAND_ACCENT}\n"
+            f"- Sticky optional, bg {accent}\n"
             "- Links: 3 anchor, font-weight 600, hover underline\n"
             "- Mobile: wrap или stack\n"
         ),
         "sections": (
             "# Block: Sections\n\n"
             "- `.container` wrapper\n"
-            "- Each section: surface card, margin-bottom 20px, padding 24px\n"
-            "- H2 margin-top 0, body muted #94a3b8 for secondary text\n"
+            f"- Each section: surface {t.surface}, margin-bottom 20px, padding 24px\n"
+            f"- H2 margin-top 0, body muted {t.muted} for secondary text\n"
         ),
     }
     return blocks.get(name, f"# Block: {name}\n\nSpec for {title}.\n")
@@ -248,17 +254,27 @@ def ensure_design_scaffold(
     user_task: str,
     app_root: Path | None = None,
 ) -> list[str]:
-    """Создать недостающие design-файлы (fallback если дизайнер не сохранил)."""
+    """Сначала скилл ui-ux-pro-max, затем недостающие файлы (не затирая spec скилла)."""
+    from core.design_skill_runtime import (
+        is_generic_corex_spec,
+        is_skill_generated_master,
+        load_project_design_tokens,
+        persist_uiux_pro_max,
+    )
+
+    created: list[str] = []
+    created.extend(persist_uiux_pro_max(project_root, user_task=user_task))
+
     roots = resolve_design_roots(project_root, app_root)
     write_root = project_root / roots.label if not Path(roots.label).is_absolute() else roots.read_root
-    created: list[str] = []
+    tokens = load_project_design_tokens(project_root)
 
     specs: list[tuple[str, str]] = [
         (roots.master_path, starter_master_md(user_task=user_task)),
         (roots.page_index_path, starter_page_index_md(user_task=user_task)),
-        (f"{roots.blocks_dir}/hero.md", starter_block_md(name="hero", user_task=user_task)),
-        (f"{roots.blocks_dir}/navigation.md", starter_block_md(name="navigation", user_task=user_task)),
-        (f"{roots.blocks_dir}/sections.md", starter_block_md(name="sections", user_task=user_task)),
+        (f"{roots.blocks_dir}/hero.md", starter_block_md(name="hero", user_task=user_task, tokens=tokens)),
+        (f"{roots.blocks_dir}/navigation.md", starter_block_md(name="navigation", user_task=user_task, tokens=tokens)),
+        (f"{roots.blocks_dir}/sections.md", starter_block_md(name="sections", user_task=user_task, tokens=tokens)),
     ]
 
     for rel, content in specs:
@@ -267,8 +283,19 @@ def ensure_design_scaffold(
         if rel_norm.startswith(label_norm + "/"):
             rel_norm = rel_norm[len(label_norm) + 1 :]
         path = write_root / rel_norm.replace("/", "\\") if "\\" in str(write_root) else write_root / rel_norm
-        if path.is_file() and path.read_text(encoding="utf-8").strip():
-            continue
+        existing = ""
+        if path.is_file():
+            try:
+                existing = path.read_text(encoding="utf-8")
+            except OSError:
+                existing = ""
+        if existing.strip():
+            if rel_norm.endswith("MASTER.md") and (
+                is_skill_generated_master(existing) or not is_generic_corex_spec(existing)
+            ):
+                continue
+            if not rel_norm.endswith("MASTER.md"):
+                continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         created.append(rel)
@@ -364,8 +391,9 @@ def designer_handoff_prompt_ru(*, user_task: str, design_folder: str = DESIGN_RO
         f"2) write_file {df}/pages/index.md — структура главной страницы\n"
         f"3) write_file {df}/blocks/hero.md, navigation.md, sections.md\n"
         "Запрещено done без успешных write_file в папке дизайна.\n"
+        "Не затирай палитру скилла ui-ux-pro-max серым Arial / #333.\n"
         f"Задача: {task}\n"
-        f"Brand: {BRAND_PRIMARY}, {BRAND_ACCENT}\n"
+        "Цвета и шрифты бери из уже записанного MASTER.md (скилл), не выдумывай другую палитру.\n"
     )
 
 
@@ -380,5 +408,6 @@ def developer_handoff_prompt_ru(*, user_task: str, design_folder: str = DESIGN_R
         "Layer 4 — write_file style.css (тёмный фон, gradient, cards, @media, ≥900)\n"
         "Layer 5 — write_file script.js (mobile nav + smooth scroll + CTA)\n"
         "Не done без script.js. Не белый плоский сайт.\n"
+        "Цвета, шрифты и стиль — строго из MASTER.md (скилл ui-ux-pro-max), не дефолт CoreX.\n"
         f"Task: {task}\n"
     )

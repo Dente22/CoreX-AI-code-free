@@ -374,6 +374,20 @@
   color: var(--corex-text);
 }
 
+.corex-chat-caret {
+  display: inline-block;
+  width: 0.45rem;
+  height: 1em;
+  margin-left: 0.15rem;
+  vertical-align: text-bottom;
+  background: var(--corex-spark);
+  animation: corex-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes corex-caret-blink {
+  50% { opacity: 0; }
+}
+
 .corex-chat-meta {
   display: flex;
   align-items: center;

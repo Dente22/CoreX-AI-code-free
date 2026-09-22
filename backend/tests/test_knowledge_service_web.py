@@ -12,3 +12,12 @@ def test_knowledge_meta_includes_web_for_html(tmp_path):
     assert any(s == "rules/web/coding-style.md" for s in meta["sources"])
     assert "web" in meta["available_languages"]
 
+
+def test_knowledge_web_task_ignores_python_files(tmp_path):
+    (tmp_path / "snake.py").write_text("print('hi')\n", encoding="utf-8")
+
+    meta = knowledge_meta(tmp_path, "создай сайт для компьютерного клуба")
+
+    assert meta["languages"] == ["web"]
+    assert any(s == "rules/web/coding-style.md" for s in meta["sources"])
+

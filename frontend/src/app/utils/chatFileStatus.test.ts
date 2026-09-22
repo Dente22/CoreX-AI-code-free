@@ -17,6 +17,7 @@ describe('isFileStatusContent', () => {
     expect(isFileStatusContent('Файл записан: style.css -> D:\\TEST\\style.css')).toBe(true);
     expect(isFileStatusContent('Файл создан: index.html')).toBe(true);
     expect(isFileStatusContent('Файл изменён (patch): main.py [replace@3]')).toBe(true);
+    expect(isFileStatusContent('Файл изменён: calculator.py')).toBe(true);
     expect(isFileStatusContent('Проверка кода OK: main.py (syntax)')).toBe(true);
   });
 
