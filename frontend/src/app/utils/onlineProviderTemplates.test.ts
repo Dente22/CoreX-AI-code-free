@@ -30,6 +30,7 @@ describe('online provider templates', () => {
     expect(template?.defaultModel).toBe('auto');
     expect(template?.isFreeBase).toBeFalsy();
     expect(template?.guide?.modelExamples).toContain('auto/coding');
+    expect(template?.guide?.modelExamples).toContain('ollama-local/qwen3:4b');
   });
 
   it('contains multiple supported providers for AI selection', () => {

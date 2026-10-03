@@ -99,6 +99,18 @@ def format_online_api_error(
             + (f"\n\nДетали: {detail}" if detail else "")
         )
 
+    if "unable to determine provider" in detail.lower():
+        return (
+            f"[CoreX] Шлюз не понял, к какому провайдеру относится модель «{model_name or '?'}» (HTTP {status}).\n"
+            "OmniRoute ждёт имя с префиксом провайдера или имя комбо.\n\n"
+            "Что сделать: Модели → Онлайн → изменить провайдер OmniRoute и указать модель, например:\n"
+            f"• ollama-local/{model_name or 'qwen3:4b'} — локальная Ollama через шлюз\n"
+            "• claude-free — ваше комбо (онлайн free-ключи + локальный фолбэк)\n"
+            "• auto — умный роутинг по подключённым провайдерам\n\n"
+            "Для чисто локальной работы проще переключиться в режим «Локально» — шлюз не нужен."
+            + (f"\n\nДетали: {detail}" if detail else "")
+        )
+
     if status == 404:
         return (
             f"[CoreX] Модель или endpoint не найден (HTTP {status}).\n"

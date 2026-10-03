@@ -87,7 +87,8 @@ export const ONLINE_PROVIDER_TEMPLATES: OnlineProviderTemplate[] = [
     defaultModel: 'auto',
     badge: 'LOCAL',
     keyPlaceholder: 'sk-...',
-    modelHint: 'auto — умный роутинг по подключённым провайдерам; auto/coding — упор на качество кода',
+    modelHint:
+      'Имя с префиксом провайдера (ollama-local/qwen3:4b) или комбо (claude-free); auto — умный роутинг. Голое qwen2.5-coder:7b шлюз не примет',
     guide: {
       summary:
         'OmniRoute запущен на этом ПК и сам раскидывает запросы по вашим подпискам, ключам и free-провайдерам с авто-фолбэком.',
@@ -116,7 +117,7 @@ export const ONLINE_PROVIDER_TEMPLATES: OnlineProviderTemplate[] = [
             'Claude Code понимает только протокол Anthropic. Groq, Gemini и другие free-ключи подключите в OmniRoute (Providers), выберите этот провайдер в CoreX — Claude Code пойдёт через шлюз.',
         },
       ],
-      modelExamples: ['auto', 'auto/coding', 'auto/fast', 'auto/cheap', 'auto/smart'],
+      modelExamples: ['claude-free', 'ollama-local/qwen3:4b', 'auto', 'auto/coding', 'auto/fast'],
     },
   },
   {

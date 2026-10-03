@@ -39,6 +39,18 @@ def test_format_online_api_error_429_gemini_is_user_friendly():
     assert "flash-lite" in text
 
 
+def test_omniroute_unprefixed_model_explains_prefix():
+    body = (
+        '{"error":{"message":"Unable to determine provider for model \'qwen2.5-coder:7b\'. '
+        'Use a provider/model prefix (e.g. openai/qwen2.5-coder:7b) or ensure the model is '
+        'added as a combo entry.","type":"invalid_request_error"}}'
+    )
+    text = format_online_api_error(400, body, model_name="qwen2.5-coder:7b")
+    assert "ollama-local/qwen2.5-coder:7b" in text
+    assert "claude-free" in text
+    assert is_online_api_failure(text)
+
+
 def test_is_online_api_failure_detects_quota_message():
     text = format_online_api_error(429, GEMINI_429_BODY, api_type="gemini")
     assert is_online_api_failure(text)
