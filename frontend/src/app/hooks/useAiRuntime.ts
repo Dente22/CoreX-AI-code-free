@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   buildFallbackRuntime,
+  checkOmniRoute,
   createOnlineProvider,
   deleteOnlineProvider,
   fetchAiRuntime,
@@ -9,6 +10,7 @@ import {
   setOnlineProvider,
   type AiMode,
   type AiRuntimeSnapshot,
+  type OmniRouteStatus,
 } from '../utils/aiProvider';
 import { resolveModeAfterChange } from '../utils/aiRuntimeUi';
 
@@ -26,6 +28,20 @@ export function useAiRuntime() {
   const [synced, setSynced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const applyGatewayStatus = (status: OmniRouteStatus | undefined) => {
+    if (!status) {
+      setNotice('');
+      return;
+    }
+    if (!status.ok) {
+      setNotice('');
+      setError(status.message || 'OmniRoute не отвечает');
+      return;
+    }
+    setNotice(status.started ? status.message || 'OmniRoute запущен' : '');
+  };
 
   const loadRuntime = useCallback(async () => {
     setLoading(true);
@@ -60,6 +76,7 @@ export function useAiRuntime() {
     } else {
       setError('');
     }
+    applyGatewayStatus(data.omniroute);
     return Boolean(data.success ?? data.mode);
   };
 
@@ -78,6 +95,7 @@ export function useAiRuntime() {
       } else {
         setError('');
       }
+      applyGatewayStatus(data.omniroute);
       return data.success !== false;
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Ошибка смены режима');
@@ -147,12 +165,35 @@ export function useAiRuntime() {
     }
   }, []);
 
+  const checkGateway = useCallback(async () => {
+    setBusy(true);
+    try {
+      const data = await checkOmniRoute();
+      const status = data.omniroute;
+      if (!status) return false;
+      if (status.ok) {
+        setError('');
+        setNotice(status.message || 'OmniRoute на связи');
+      } else {
+        applyGatewayStatus(status);
+      }
+      return status.ok;
+    } catch (checkError) {
+      setError(checkError instanceof Error ? checkError.message : 'Ошибка проверки OmniRoute');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   return {
     runtime,
     loading,
     synced,
     busy,
     error,
+    notice,
+    checkGateway,
     loadRuntime,
     changeMode,
     selectLocal,

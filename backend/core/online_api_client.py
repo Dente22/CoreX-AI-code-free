@@ -12,6 +12,7 @@ import aiohttp
 
 from core.conversation_memory import trim_history_for_llm
 from core.gemini_models import normalize_gemini_model_name
+from core.omniroute_service import ensure_omniroute, is_omniroute_url
 from core.online_api_errors import format_online_api_error, is_model_unavailable_error
 from core.token_usage_service import TokenUsage
 
@@ -56,6 +57,7 @@ class OnlineApiClient:
         self.api_type = api_type
         self.chat_url = f"{self.base_url}/chat/completions" if self.base_url else ""
         self._last_usage: LlmUsageStats | None = None
+        self.last_error = ""
         self.on_model_switched: Callable[[str, str], None] | None = None
         self._model_switch_notices: list[str] = []
 
@@ -172,7 +174,15 @@ class OnlineApiClient:
         return await self.ensure_ready()
 
     async def ensure_ready(self) -> bool:
-        return bool(self.base_url and self.api_key and self.model_name)
+        self.last_error = ""
+        if not (self.base_url and self.api_key and self.model_name):
+            return False
+        if self.api_type == "openai" and is_omniroute_url(self.base_url):
+            status = await ensure_omniroute(self.base_url)
+            if not status.ok:
+                self.last_error = status.message
+                return False
+        return True
 
     def _headers(self) -> dict[str, str]:
         if self.api_type == "gemini":

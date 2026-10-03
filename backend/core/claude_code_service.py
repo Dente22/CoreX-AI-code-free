@@ -17,12 +17,12 @@ from urllib.parse import urlparse
 
 from core.cli_process import run_streaming_cli
 from core.llm_runtime import ActiveLlm
+from core.omniroute_service import is_omniroute_url
 from core.token_usage_service import TokenUsage
 
 CLAUDE_EDIT_TOOLS = ("Bash", "Edit", "Write", "Read", "Glob", "Grep")
 CLAUDE_READ_TOOLS = ("Read", "Glob", "Grep")
 DEFAULT_MAX_TURNS = 30
-OMNIROUTE_PORT = 20128
 
 _FILE_TOOL_KEYS = {
     "Edit": "file_path",
@@ -104,15 +104,6 @@ def claude_code_missing_message() -> str:
     )
 
 
-def _is_omniroute(base_url: str, provider_name: str) -> bool:
-    parsed = urlparse(base_url)
-    return (
-        parsed.port == OMNIROUTE_PORT
-        or "omniroute" in (parsed.hostname or "").lower()
-        or "omniroute" in (provider_name or "").lower()
-    )
-
-
 def _strip_v1(base_url: str) -> str:
     clean = (base_url or "").rstrip("/")
     return clean[:-3] if clean.endswith("/v1") else clean
@@ -145,7 +136,7 @@ def resolve_claude_brain(active: ActiveLlm) -> ClaudeBrain:
         return ClaudeBrain(base_url="https://openrouter.ai/api", api_key=api_key, model=model, bare=False)
     if host.endswith("anthropic.com"):
         return ClaudeBrain(base_url="https://api.anthropic.com", api_key=api_key, model=model, bare=True)
-    if _is_omniroute(base_url, active.provider_name):
+    if is_omniroute_url(base_url, active.provider_name):
         return ClaudeBrain(base_url=_strip_v1(base_url), api_key=api_key, model=model, bare=True)
     raise ValueError(OMNIROUTE_HINT)
 

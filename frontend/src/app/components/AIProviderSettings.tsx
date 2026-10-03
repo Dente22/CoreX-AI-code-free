@@ -18,7 +18,7 @@ import {
   webAccessHint,
   type WebAccessMode,
 } from '../utils/webAccess';
-import type { AiMode } from '../utils/aiProvider';
+import { isOmniRouteProvider, type AiMode } from '../utils/aiProvider';
 
 interface AIProviderSettingsProps {
   onNotification?: (message: string) => void;
@@ -31,6 +31,8 @@ export function AIProviderSettings({ onNotification }: AIProviderSettingsProps) 
     synced,
     busy,
     error,
+    notice,
+    checkGateway,
     loadRuntime,
     changeMode,
     selectLocal,
@@ -242,7 +244,8 @@ export function AIProviderSettings({ onNotification }: AIProviderSettingsProps) 
         </p>
       </div>
 
-      {error ? <p className="text-sm text-[#f48771]">{error}</p> : null}
+      {error ? <p className="text-sm text-[#f48771] whitespace-pre-line select-text">{error}</p> : null}
+      {notice ? <p className="text-sm text-[#89d185]">{notice}</p> : null}
       {modelsError ? <p className="text-sm text-[#f48771]">{modelsError}</p> : null}
 
       <div className="corex-segmented">
@@ -405,7 +408,20 @@ export function AIProviderSettings({ onNotification }: AIProviderSettingsProps) 
                     Выбрать
                   </button>
                 ) : (
-                  <span className="text-[9px] uppercase tracking-wide text-[#89d185]">активен</span>
+                  <>
+                    {isOmniRouteProvider(provider) ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void checkGateway()}
+                        title="Проверить подключение и запустить OmniRoute, если он не запущен"
+                        className="px-2 py-1 rounded text-[11px] text-[var(--corex-spark)] border border-[var(--corex-spark)]/30"
+                      >
+                        Проверить
+                      </button>
+                    ) : null}
+                    <span className="text-[9px] uppercase tracking-wide text-[#89d185]">активен</span>
+                  </>
                 )}
                 <button
                   type="button"

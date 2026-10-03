@@ -861,8 +861,29 @@ class WebSocketServer:
                 )
             except RuntimeError as exc:
                 payload["warning"] = str(exc)
+            if mode == "online":
+                await self._attach_omniroute_status(payload)
             payload.update(self.orchestrator.get_ai_runtime_snapshot())
         return web.json_response(payload, status=status)
+
+    async def _attach_omniroute_status(self, payload: dict) -> None:
+        """Выбран OmniRoute — поднять шлюз или вернуть инструкцию по подключению."""
+        from core.omniroute_service import ensure_omniroute, is_omniroute_url
+
+        provider = self.orchestrator.ai_runtime_service.online_service.get_selected_provider() or {}
+        base_url = str(provider.get("base_url") or "")
+        if provider.get("api_type") == "gemini" or not is_omniroute_url(
+            base_url, str(provider.get("name") or "")
+        ):
+            return
+        payload["omniroute"] = (await ensure_omniroute(base_url)).to_dict()
+
+    async def handle_omniroute_check(self, request):
+        if not self.orchestrator:
+            return web.json_response({"error": "Orchestrator not available"}, status=503)
+        payload: dict = {"success": True}
+        await self._attach_omniroute_status(payload)
+        return web.json_response(payload)
 
     async def handle_create_online_provider(self, request):
         if not self.orchestrator:
@@ -875,6 +896,7 @@ class WebSocketServer:
         status = 200 if result.get("success") else 400
         payload = {"success": result.get("success", False), **result}
         if result.get("success"):
+            await self._attach_omniroute_status(payload)
             payload.update(self.orchestrator.get_ai_runtime_snapshot())
         return web.json_response(payload, status=status)
 
@@ -892,6 +914,7 @@ class WebSocketServer:
         status = 200 if result.get("success") else 400
         payload = {"success": result.get("success", False), **result}
         if result.get("success"):
+            await self._attach_omniroute_status(payload)
             payload.update(self.orchestrator.get_ai_runtime_snapshot())
         return web.json_response(payload, status=status)
 
@@ -1202,6 +1225,7 @@ class WebSocketServer:
             app.router.add_post('/api/ai/online/providers', self.handle_create_online_provider)
             app.router.add_post('/api/ai/online/provider', self.handle_set_online_provider)
             app.router.add_delete('/api/ai/online/providers/{provider_id}', self.handle_delete_online_provider)
+            app.router.add_post('/api/ai/omniroute/check', self.handle_omniroute_check)
             app.router.add_get('/api/ai/ollama/models', self.handle_ollama_models)
             app.router.add_post('/api/ai/ollama/pull', self.handle_ollama_pull)
             app.router.add_get('/api/ai/ollama/pull/progress', self.handle_ollama_pull_progress)

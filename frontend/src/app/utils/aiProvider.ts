@@ -139,8 +139,40 @@ export interface OnlineAiProvider {
   selected?: boolean;
 }
 
+export interface OmniRouteStatus {
+  ok: boolean;
+  started?: boolean;
+  message?: string;
+}
+
+const OMNIROUTE_PORT = '20128';
+
+export function isOmniRouteProvider(provider: Pick<OnlineAiProvider, 'base_url' | 'name' | 'api_type'>): boolean {
+  if (provider.api_type === 'gemini') return false;
+  let port = '';
+  let host = '';
+  try {
+    const url = new URL(provider.base_url);
+    port = url.port;
+    host = url.hostname.toLowerCase();
+  } catch {
+    // invalid URL: fall back to the name check
+  }
+  return (
+    port === OMNIROUTE_PORT ||
+    host.includes('omniroute') ||
+    provider.name.toLowerCase().includes('omniroute')
+  );
+}
+
+export async function checkOmniRoute(): Promise<{ success: boolean; omniroute?: OmniRouteStatus }> {
+  const response = await fetchApi('/api/ai/omniroute/check', { method: 'POST' });
+  return response.json();
+}
+
 export interface AiRuntimeSnapshot {
   success?: boolean;
+  omniroute?: OmniRouteStatus;
   mode: AiMode;
   active_name?: string;
   active_model?: string;

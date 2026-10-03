@@ -147,6 +147,9 @@ async def ensure_llm_ready(active: ActiveLlm) -> bool:
 
 def llm_readiness_error(active: ActiveLlm) -> str:
     if active.mode == "online":
+        online_error = str(getattr(active.client, "last_error", "") or "").strip()
+        if online_error:
+            return online_error
         if not active.model_name or not getattr(active.client, "api_key", ""):
             return "Онлайн API не настроен. Добавьте провайдера и выберите модель в чате."
         return (
