@@ -1,4 +1,4 @@
-"""Tests for coding engine preference (Aider vs CoreX agent)."""
+"""Tests for coding engine preference (Claude Code / Aider / CoreX agent)."""
 
 from pathlib import Path
 
@@ -11,11 +11,12 @@ from core.coding_engine import (
 )
 
 
-def test_default_engine_is_aider(tmp_path: Path):
-    assert get_coding_engine(tmp_path) == "aider"
-    assert DEFAULT_CODING_ENGINE == "aider"
-    assert validate_coding_engine("nope") == "aider"
+def test_default_engine_is_claude_code(tmp_path: Path):
+    assert get_coding_engine(tmp_path) == "claude_code"
+    assert DEFAULT_CODING_ENGINE == "claude_code"
+    assert validate_coding_engine("nope") == "claude_code"
     assert validate_coding_engine("corex") == "corex"
+    assert validate_coding_engine("aider") == "aider"
 
 
 def test_persist_coding_engine(tmp_path: Path):
@@ -23,4 +24,5 @@ def test_persist_coding_engine(tmp_path: Path):
     assert get_coding_engine(tmp_path) == "corex"
     snap = coding_engine_snapshot(tmp_path)
     assert snap["engine"] == "corex"
-    assert any(item["id"] == "aider" for item in snap["engines"])
+    ids = [item["id"] for item in snap["engines"]]
+    assert ids == ["claude_code", "aider", "corex"]

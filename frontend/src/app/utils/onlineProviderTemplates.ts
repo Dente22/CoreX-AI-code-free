@@ -79,6 +79,47 @@ export const ONLINE_PROVIDER_TEMPLATES: OnlineProviderTemplate[] = [
     },
   },
   {
+    id: 'omniroute',
+    label: 'OmniRoute (локальный шлюз)',
+    apiType: 'openai',
+    // 127.0.0.1 instead of localhost: on Windows localhost may resolve to ::1 first.
+    defaultBaseUrl: 'http://127.0.0.1:20128/v1',
+    defaultModel: 'auto',
+    badge: 'LOCAL',
+    keyPlaceholder: 'sk-...',
+    modelHint: 'auto — умный роутинг по подключённым провайдерам; auto/coding — упор на качество кода',
+    guide: {
+      summary:
+        'OmniRoute запущен на этом ПК и сам раскидывает запросы по вашим подпискам, ключам и free-провайдерам с авто-фолбэком.',
+      limits:
+        'Шлюз должен быть запущен до запроса (omniroute serve --port 20128). Лимиты зависят от провайдеров, подключённых в OmniRoute.',
+      steps: [
+        {
+          title: '1. Запустите OmniRoute',
+          detail:
+            'omniroute serve --daemon --no-open --port 20128 (или ваш claude-omniroute.bat). Проверка: дашборд открывается в браузере.',
+          url: 'http://127.0.0.1:20128',
+          urlLabel: 'Дашборд OmniRoute',
+        },
+        {
+          title: '2. Возьмите API-ключ',
+          detail: 'В дашборде OmniRoute → API Keys создайте или скопируйте ключ вида sk-...',
+        },
+        {
+          title: '3. Вставьте в CoreX',
+          detail:
+            'Base URL оставьте http://127.0.0.1:20128/v1, модель auto (или auto/coding), вставьте ключ и нажмите «Добавить».',
+        },
+        {
+          title: '4. Для движка Claude Code',
+          detail:
+            'Claude Code понимает только протокол Anthropic. Groq, Gemini и другие free-ключи подключите в OmniRoute (Providers), выберите этот провайдер в CoreX — Claude Code пойдёт через шлюз.',
+        },
+      ],
+      modelExamples: ['auto', 'auto/coding', 'auto/fast', 'auto/cheap', 'auto/smart'],
+    },
+  },
+  {
     id: 'openrouter',
     label: 'OpenRouter',
     apiType: 'openai',

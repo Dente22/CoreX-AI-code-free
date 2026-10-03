@@ -1,6 +1,6 @@
 import { fetchApi } from './api';
 
-export type CodingEngineId = 'aider' | 'corex';
+export type CodingEngineId = 'claude_code' | 'aider' | 'corex';
 
 export interface CodingEngineOption {
   id: CodingEngineId;
@@ -8,7 +8,15 @@ export interface CodingEngineOption {
   description: string;
 }
 
+export const DEFAULT_CODING_ENGINE: CodingEngineId = 'claude_code';
+
 export const CODING_ENGINES: CodingEngineOption[] = [
+  {
+    id: 'claude_code',
+    name: 'Claude Code',
+    description:
+      'Агент с командами и правками. Модель — локальная (Ollama), OmniRoute или OpenRouter; Groq/Gemini — через OmniRoute',
+  },
   { id: 'aider', name: 'Aider', description: 'Правки без JSON tool-calls' },
   { id: 'corex', name: 'CoreX агент', description: 'Встроенный цикл с инструментами' },
 ];
@@ -24,7 +32,7 @@ export function getSavedCodingEngine(): CodingEngineId {
   } catch {
     // ignore
   }
-  return 'aider';
+  return DEFAULT_CODING_ENGINE;
 }
 
 export function saveCodingEngineLocal(engine: CodingEngineId) {
@@ -36,7 +44,11 @@ export function saveCodingEngineLocal(engine: CodingEngineId) {
 }
 
 export function codingEngineLabel(id: string): string {
-  return CODING_ENGINES.find((item) => item.id === id)?.name || 'Aider';
+  return CODING_ENGINES.find((item) => item.id === id)?.name || 'Claude Code';
+}
+
+export function codingEngineDescription(id: string): string {
+  return CODING_ENGINES.find((item) => item.id === id)?.description || '';
 }
 
 export async function fetchCodingEngine(): Promise<{

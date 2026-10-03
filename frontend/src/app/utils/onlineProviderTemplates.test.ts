@@ -22,6 +22,16 @@ describe('online provider templates', () => {
     expect(template?.defaultModel).toBe('gemini-2.5-flash');
   });
 
+  it('returns OmniRoute template pointing at the local OpenAI-compatible gateway', () => {
+    const template = getProviderTemplateById('omniroute');
+    expect(template).toBeDefined();
+    expect(template?.apiType).toBe('openai');
+    expect(template?.defaultBaseUrl).toBe('http://127.0.0.1:20128/v1');
+    expect(template?.defaultModel).toBe('auto');
+    expect(template?.isFreeBase).toBeFalsy();
+    expect(template?.guide?.modelExamples).toContain('auto/coding');
+  });
+
   it('contains multiple supported providers for AI selection', () => {
     expect(ONLINE_PROVIDER_TEMPLATES.length).toBeGreaterThanOrEqual(5);
     const ids = ONLINE_PROVIDER_TEMPLATES.map((item) => item.id);

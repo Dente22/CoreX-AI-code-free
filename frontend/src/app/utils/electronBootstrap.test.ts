@@ -200,6 +200,13 @@ describe('resolveBackendHealthTimeoutMs', () => {
     expect(withEmbedded).toBeGreaterThan(without);
     expect(withEmbedded).toBeLessThanOrEqual(25000);
   });
+
+  it('gives a dev .venv cold start more headroom than a packaged build', () => {
+    const dev = resolveBackendHealthTimeoutMs({ hasEmbeddedPython: false, isPackaged: false });
+    const packaged = resolveBackendHealthTimeoutMs({ hasEmbeddedPython: false, isPackaged: true });
+    expect(dev).toBeGreaterThan(packaged);
+    expect(dev).toBeLessThanOrEqual(25000);
+  });
 });
 
 describe('shouldOpenWindowBeforeBackend', () => {

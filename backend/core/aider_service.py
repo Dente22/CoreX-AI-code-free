@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
 import shutil
 import subprocess
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from core.cli_process import LineCallback, run_streaming_cli
 from core.llm_runtime import ActiveLlm
 
-LineCallback = Callable[[str], Awaitable[None] | None]
 AiderLineKind = Literal["reply", "file", "noise"]
 
 _EDITED_RE = re.compile(
@@ -489,134 +487,46 @@ async def run_aider(
     process_holder: dict[str, Any] | None = None,
 ) -> AiderRunResult:
     """Запуск Aider через subprocess.Popen (Windows SelectorEventLoop не умеет asyncio subprocess)."""
-    import sys
+    outcome = await run_streaming_cli(
+        launch.argv,
+        env=launch.env,
+        cwd=launch.cwd,
+        on_line=on_line,
+        timeout_sec=timeout_sec,
+        process_holder=process_holder,
+    )
+    blob = outcome.output
+    if outcome.timed_out:
+        return AiderRunResult(
+            ok=False,
+            exit_code=-1,
+            stdout=blob,
+            stderr="",
+            model=launch.model,
+            edited_files=parse_edited_files(blob),
+            error="Aider превысил лимит времени",
+        )
+    if outcome.spawn_error is not None:
+        tag, exc = outcome.spawn_error
+        if tag == "missing":
+            return AiderRunResult(
+                ok=False,
+                exit_code=127,
+                stdout="",
+                stderr="",
+                model=launch.model,
+                error=aider_missing_message(),
+            )
+        return AiderRunResult(
+            ok=False,
+            exit_code=1,
+            stdout=blob,
+            stderr="",
+            model=launch.model,
+            error=f"Не удалось запустить Aider: {type(exc).__name__}: {exc}".strip(": "),
+        )
 
-    loop = asyncio.get_running_loop()
-    event_q: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
-    chunks: list[str] = []
-
-    def _worker() -> None:
-        popen_kwargs: dict[str, Any] = {
-            "cwd": str(launch.cwd),
-            "env": launch.env,
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.STDOUT,
-            "stdin": subprocess.DEVNULL,
-            "text": True,
-            "encoding": "utf-8",
-            "errors": "replace",
-            "bufsize": 1,
-        }
-        if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
-            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-        try:
-            proc = subprocess.Popen(launch.argv, **popen_kwargs)
-        except FileNotFoundError as exc:
-            loop.call_soon_threadsafe(event_q.put_nowait, ("fail", ("missing", exc)))
-            return
-        except OSError as exc:
-            loop.call_soon_threadsafe(event_q.put_nowait, ("fail", ("os", exc)))
-            return
-
-        if process_holder is not None:
-            process_holder["process"] = proc
-        try:
-            assert proc.stdout is not None
-            for raw in proc.stdout:
-                text = raw.rstrip("\r\n")
-                chunks.append(text)
-                loop.call_soon_threadsafe(event_q.put_nowait, ("line", text))
-            code = proc.wait(timeout=max(1.0, float(timeout_sec)))
-            loop.call_soon_threadsafe(event_q.put_nowait, ("done", int(code)))
-        except subprocess.TimeoutExpired:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            try:
-                proc.wait(timeout=10)
-            except Exception:
-                pass
-            loop.call_soon_threadsafe(event_q.put_nowait, ("timeout", None))
-        except Exception as exc:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            loop.call_soon_threadsafe(event_q.put_nowait, ("fail", ("run", exc)))
-        finally:
-            if process_holder is not None:
-                process_holder.pop("process", None)
-
-    worker_fut = loop.run_in_executor(None, _worker)
-    code = 1
-    try:
-        while True:
-            try:
-                kind, payload = await asyncio.wait_for(event_q.get(), timeout=timeout_sec + 5.0)
-            except asyncio.TimeoutError:
-                proc = (process_holder or {}).get("process")
-                if proc is not None and getattr(proc, "poll", lambda: 0)() is None:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-                blob = "\n".join(chunks)
-                return AiderRunResult(
-                    ok=False,
-                    exit_code=-1,
-                    stdout=blob,
-                    stderr="",
-                    model=launch.model,
-                    edited_files=parse_edited_files(blob),
-                    error="Aider превысил лимит времени",
-                )
-            if kind == "line":
-                text = str(payload or "")
-                if on_line and text.strip():
-                    maybe = on_line(text)
-                    if asyncio.iscoroutine(maybe):
-                        await maybe
-            elif kind == "done":
-                code = int(payload)
-                break
-            elif kind == "timeout":
-                blob = "\n".join(chunks)
-                return AiderRunResult(
-                    ok=False,
-                    exit_code=-1,
-                    stdout=blob,
-                    stderr="",
-                    model=launch.model,
-                    edited_files=parse_edited_files(blob),
-                    error="Aider превысил лимит времени",
-                )
-            elif kind == "fail":
-                tag, exc = payload
-                if tag == "missing":
-                    return AiderRunResult(
-                        ok=False,
-                        exit_code=127,
-                        stdout="",
-                        stderr="",
-                        model=launch.model,
-                        error=aider_missing_message(),
-                    )
-                return AiderRunResult(
-                    ok=False,
-                    exit_code=1,
-                    stdout="\n".join(chunks),
-                    stderr="",
-                    model=launch.model,
-                    error=f"Не удалось запустить Aider: {type(exc).__name__}: {exc}".strip(": "),
-                )
-    finally:
-        try:
-            await asyncio.wait_for(asyncio.shield(worker_fut), timeout=15.0)
-        except Exception:
-            pass
-
-    blob = "\n".join(chunks)
+    code = outcome.exit_code
     edited = parse_edited_files(blob)
     ok = code == 0
     error = None if ok else (blob[-1500:] if blob else f"Aider exit {code}")

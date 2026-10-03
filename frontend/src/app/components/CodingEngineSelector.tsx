@@ -1,5 +1,5 @@
-import { Bot, Sparkles } from 'lucide-react';
-import type { CodingEngineId } from '../utils/codingEngine';
+import { Bot, Sparkles, SquareTerminal } from 'lucide-react';
+import { codingEngineDescription, type CodingEngineId } from '../utils/codingEngine';
 
 interface CodingEngineSelectorProps {
   codingEngine: CodingEngineId;
@@ -13,6 +13,13 @@ const modes: {
   icon: typeof Sparkles;
   activeClass: string;
 }[] = [
+  {
+    id: 'claude_code',
+    label: 'Claude Code',
+    icon: SquareTerminal,
+    activeClass:
+      'corex-segmented-btn--active bg-[rgba(255,153,0,0.15)] text-[#ffb347] border-[#ffb347]/30',
+  },
   {
     id: 'aider',
     label: 'Aider',
@@ -41,6 +48,7 @@ export function CodingEngineSelector({
           key={id}
           type="button"
           disabled={disabled}
+          title={codingEngineDescription(id)}
           onClick={() => onCodingEngineChange(id)}
           className={`corex-segmented-btn ${codingEngine === id ? activeClass : ''}`}
         >

@@ -175,7 +175,7 @@ export function AddOnlineProviderModal({
               {activeTemplate.guide.modelExamples?.length ? (
                 <div className="pt-1">
                   <div className="text-[10px] uppercase tracking-wide text-[#6b7280] mb-1">
-                    Примеры free-моделей
+                    Примеры моделей
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {activeTemplate.guide.modelExamples.map((example) => (

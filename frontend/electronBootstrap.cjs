@@ -96,6 +96,11 @@ function resolveBackendHealthTimeoutMs(options = {}) {
   if (options.hasEmbeddedPython) {
     return 18000;
   }
+  // Dev .venv cold start (imports + .pyc compile + antivirus scan) often exceeds 8s;
+  // a crashed backend still fails fast via the early-exit check in startBackend.
+  if (options.isPackaged === false) {
+    return 20000;
+  }
   return 8000;
 }
 

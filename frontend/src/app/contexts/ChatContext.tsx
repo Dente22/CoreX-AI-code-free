@@ -716,7 +716,7 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
 
           if (target === 'chat_delta') {
             setIsThinking(true);
-            if (codingEngineRef.current === 'aider') {
+            if (codingEngineRef.current !== 'corex') {
               setThoughts([]);
             }
             setMessages((prev) => applyChatDelta(prev, text, {
@@ -740,7 +740,7 @@ export function ChatProvider({ children, projectRoot = '' }: ChatProviderProps) 
             if (shouldStopThinking(sender, text)) {
               setIsThinking(false);
               setThoughts([]);
-            } else if (codingEngineRef.current === 'aider') {
+            } else if (codingEngineRef.current !== 'corex') {
               setThoughts([]);
             }
 

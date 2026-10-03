@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 import json
 import os
 import re
@@ -268,8 +269,8 @@ class CoreXOrchestrator:
         self._web_search_block = ""
         self._lesson_recorded = False
         self._pending_lesson: dict[str, Any] = {}
-        self._coding_engine = "aider"
-        self._aider_proc: dict[str, Any] = {}
+        self._coding_engine = "claude_code"
+        self._engine_proc: dict[str, Any] = {}
         self._quiet_chat_thoughts = False
 
         self._base_system_prompt = (
@@ -669,7 +670,7 @@ class CoreXOrchestrator:
             return {"error": str(e)}
 
     def stop_current_task(self):
-        proc = self._aider_proc.get("process")
+        proc = self._engine_proc.get("process")
         if proc is not None and proc.returncode is None:
             try:
                 proc.kill()
@@ -2216,7 +2217,7 @@ class CoreXOrchestrator:
             self._coding_engine = validate_coding_engine(coding_engine)
         else:
             self._coding_engine = get_coding_engine(self._app_root())
-        self._quiet_chat_thoughts = self._coding_engine == "aider"
+        self._quiet_chat_thoughts = self._coding_engine in ("aider", "claude_code")
 
         self._broadcast_trace(
             "task",
@@ -2700,10 +2701,6 @@ class CoreXOrchestrator:
             public_aider_reply,
             run_aider,
         )
-        from core.coding_language import language_prompt_ru
-        from core.core_x_library import resolve_persona_prompt
-        from core.knowledge_service import build_knowledge_bundle
-        from core.web_delivery_layers import is_web_site_task, salvage_web_project
 
         del conversational  # чат без кода не сюда попадает
         active = self._resolve_llm()
@@ -2713,32 +2710,9 @@ class CoreXOrchestrator:
         if not await self._ensure_online_token_budget(active):
             return None
 
-        persona_name, persona_body = resolve_persona_prompt(
-            active_root, persona_id, for_orchestrator=True
+        persona_name, persona_body, knowledge_text, lang_hint, web_task = self._engine_task_context(
+            active_root, persona_id, user_task, current_prompt
         )
-        knowledge = build_knowledge_bundle(active_root, user_task or current_prompt, persona_id)
-        coding_language = getattr(self, "_coding_language", "auto")
-        web_task = is_web_site_task(
-            user_task,
-            current_prompt,
-            coding_language=coding_language,
-        )
-        lang_hint = ""
-        try:
-            lang_hint = language_prompt_ru(coding_language)
-        except Exception:
-            lang_hint = ""
-        if web_task:
-            lang_hint = (
-                "HTML, CSS и JavaScript (index.html, style.css, script.js). Не Python."
-            )
-
-        from core.design_skill_runtime import design_skill_digest
-
-        skill_digest = design_skill_digest(active_root) if web_task else ""
-        knowledge_text = knowledge.text if knowledge else ""
-        if skill_digest:
-            knowledge_text = f"{skill_digest}\n{knowledge_text}".strip()
 
         chat_mode = "ask" if (is_question and not requires_writes) else None
         message = build_aider_message(
@@ -2823,7 +2797,7 @@ class CoreXOrchestrator:
         result = await run_aider(
             launch,
             on_line=_on_line,
-            process_holder=self._aider_proc,
+            process_holder=self._engine_proc,
         )
         if not result.ok:
             err = result.error or "Aider завершился с ошибкой"
@@ -2854,7 +2828,80 @@ class CoreXOrchestrator:
             meta={**self._trace_llm_meta(active), "coding_engine": "aider"},
         )
 
-        edited = list(result.edited_files or chat_filter.files)
+        streamed = chat_filter.reply_text
+        return await self._finalize_engine_edits(
+            engine_label="Aider",
+            how="aider",
+            active_root=active_root,
+            edited=list(result.edited_files or chat_filter.files),
+            announced_files=announced_files,
+            streamed=streamed,
+            reply_for=lambda files: public_aider_reply(streamed, files),
+            web_task=web_task,
+            require_verification=require_verification,
+            json_target_path=json_target_path,
+            user_task=user_task,
+            current_prompt=current_prompt,
+        )
+
+    def _engine_task_context(
+        self,
+        active_root: Path,
+        persona_id: str | None,
+        user_task: str,
+        current_prompt: str,
+    ) -> tuple[str, str, str, str, bool]:
+        """Персона, знания/скилы и язык для внешних движков (Aider, Claude Code)."""
+        from core.coding_language import language_prompt_ru
+        from core.core_x_library import resolve_persona_prompt
+        from core.design_skill_runtime import design_skill_digest
+        from core.knowledge_service import build_knowledge_bundle
+        from core.web_delivery_layers import is_web_site_task
+
+        persona_name, persona_body = resolve_persona_prompt(
+            active_root, persona_id, for_orchestrator=True
+        )
+        knowledge = build_knowledge_bundle(active_root, user_task or current_prompt, persona_id)
+        coding_language = getattr(self, "_coding_language", "auto")
+        web_task = is_web_site_task(
+            user_task,
+            current_prompt,
+            coding_language=coding_language,
+        )
+        lang_hint = ""
+        try:
+            lang_hint = language_prompt_ru(coding_language)
+        except Exception:
+            lang_hint = ""
+        if web_task:
+            lang_hint = (
+                "HTML, CSS и JavaScript (index.html, style.css, script.js). Не Python."
+            )
+        skill_digest = design_skill_digest(active_root) if web_task else ""
+        knowledge_text = knowledge.text if knowledge else ""
+        if skill_digest:
+            knowledge_text = f"{skill_digest}\n{knowledge_text}".strip()
+        return persona_name or "", persona_body or "", knowledge_text, lang_hint, web_task
+
+    async def _finalize_engine_edits(
+        self,
+        *,
+        engine_label: str,
+        how: str,
+        active_root: Path,
+        edited: list[str],
+        announced_files: list[str],
+        streamed: str,
+        reply_for: Callable[[list[str]], str],
+        web_task: bool,
+        require_verification: bool,
+        json_target_path: str | None,
+        user_task: str,
+        current_prompt: str,
+    ) -> str:
+        """Общий финал внешнего движка: проверка .py, патчи в редактор, ответ, память."""
+        from core.web_delivery_layers import salvage_web_project
+
         if require_verification and not edited and json_target_path:
             candidate = Path(active_root) / json_target_path
             if candidate.is_file():
@@ -2887,7 +2934,7 @@ class CoreXOrchestrator:
                     self._broadcast(
                         "chat",
                         "CoreX Error",
-                        f"После Aider запуск упал: {clean}\n{detail[:1500]}",
+                        f"После {engine_label} запуск упал: {clean}\n{detail[:1500]}",
                     )
 
         for rel in edited:
@@ -2911,8 +2958,7 @@ class CoreXOrchestrator:
             if upgraded:
                 edited = list(dict.fromkeys([*edited, *upgraded]))
 
-        streamed = chat_filter.reply_text
-        msg = public_aider_reply(streamed, edited)
+        msg = reply_for(edited)
         if verified:
             checked = ", ".join(sorted(verified))
             if checked and "Проверено" not in msg:
@@ -2928,21 +2974,203 @@ class CoreXOrchestrator:
             try:
                 mem = (
                     "# Project memory\n\n"
-                    f"- Aider: {', '.join(edited[:6]) or 'ответ без файлов'}\n"
+                    f"- {engine_label}: {', '.join(edited[:6]) or 'ответ без файлов'}\n"
                 )
                 if self.file_service is not None:
                     await self.file_service.write_file(MEMORY_REL_PATH, mem)
             except Exception:
                 pass
-            self._snapshot_lesson(edited, verified, how="aider", ok=True)
+            self._snapshot_lesson(edited, verified, how=how, ok=True)
             self._remember_code_lesson(
                 user_task or current_prompt,
                 ok=True,
-                how="aider",
+                how=how,
                 files=edited,
             )
 
         return msg
+
+    async def _run_via_claude_code(
+        self,
+        *,
+        current_prompt: str,
+        active_root: Path,
+        is_question: bool,
+        requires_writes: bool,
+        persona_id: str | None,
+        require_verification: bool = False,
+        json_target_path: str | None = None,
+        user_task: str = "",
+    ) -> str | None:
+        """Claude Code как агент (команды + правки), мозг — активная модель CoreX."""
+        from core.claude_code_service import (
+            build_claude_code_launch,
+            build_claude_system_prompt,
+            build_claude_task_message,
+            ollama_model_supports_tools,
+            public_claude_reply,
+            resolve_claude_brain,
+            run_claude_code,
+        )
+
+        active = self._resolve_llm()
+        if not await ensure_llm_ready(active):
+            self._broadcast("chat", "CoreX Error", llm_readiness_error(active))
+            return None
+        if not await self._ensure_online_token_budget(active):
+            return None
+
+        persona_name, persona_body, knowledge_text, lang_hint, web_task = self._engine_task_context(
+            active_root, persona_id, user_task, current_prompt
+        )
+        read_only = bool(is_question and not requires_writes)
+
+        try:
+            brain = resolve_claude_brain(active)
+            launch = build_claude_code_launch(
+                project_root=active_root,
+                active=active,
+                task_message=build_claude_task_message(
+                    task=user_task or current_prompt,
+                    plan_text=current_prompt,
+                    write_dest=json_target_path or "",
+                ),
+                system_prompt=build_claude_system_prompt(
+                    persona_label=persona_name or (persona_id or ""),
+                    persona_body=persona_body,
+                    knowledge_text=knowledge_text,
+                    language_hint=lang_hint,
+                ),
+                read_only=read_only,
+            )
+        except Exception as exc:
+            detail = str(exc).strip() or type(exc).__name__
+            self._broadcast_trace(
+                "llm",
+                "claude_code_failed",
+                f"Claude Code не запустился: {detail}",
+                node="llm",
+                status="error",
+                error_message=detail,
+            )
+            self._broadcast("chat", "CoreX Error", f"Claude Code: {detail}")
+            return None
+
+        if active.mode == "local":
+            supports_tools = await ollama_model_supports_tools(brain.base_url, brain.model)
+            if supports_tools is False:
+                self._broadcast(
+                    "chat",
+                    "CoreX Status",
+                    f"Модель {brain.model} не умеет вызывать инструменты — Claude Code не сможет "
+                    "править файлы и запускать команды. Для локальной работы выберите модель с tools "
+                    "(например qwen3:4b или llama3.1:8b).",
+                )
+
+        self._broadcast_trace(
+            "llm",
+            "claude_code_start",
+            f"Запуск Claude Code · {llm_thinking_label(active)}" + (" · только чтение" if read_only else ""),
+            node="llm",
+            status="active",
+            meta={
+                **self._trace_llm_meta(active),
+                "coding_engine": "claude_code",
+                "persona": persona_name or "",
+            },
+        )
+
+        announced_files: list[str] = []
+        streamed_parts: list[str] = []
+
+        def _on_event(event) -> None:
+            if event.kind == "reply":
+                streamed_parts.append(event.text)
+                self._broadcast_chat_delta(event.text)
+            elif event.kind == "file":
+                path = (event.path or "").replace("\\", "/").lstrip("./")
+                if path and path not in announced_files:
+                    announced_files.append(path)
+                    self._broadcast("chat", "CoreX", f"Файл изменён: {path}")
+            elif event.kind == "command":
+                self._broadcast_trace(
+                    "llm",
+                    "claude_code_command",
+                    f"$ {event.text[:150]}",
+                    node="llm",
+                    status="done",
+                )
+
+        result = await run_claude_code(
+            launch,
+            on_event=_on_event,
+            process_holder=self._engine_proc,
+        )
+
+        if result.usage is not None and active.mode == "online":
+            recorded = record_usage(
+                self._app_root(), result.usage, mode=active.mode, label="claude_code"
+            )
+            if recorded.get("warning"):
+                self._broadcast_thinking(recorded["warning"])
+
+        if result.text_tool_calls and not result.edited_files:
+            self._broadcast(
+                "chat",
+                "CoreX Status",
+                f"Модель {result.model} писала вызовы инструментов текстом вместо настоящих — "
+                "файлы не изменены. Выберите модель с поддержкой tools.",
+            )
+
+        if not result.ok:
+            err = result.error or "Claude Code завершился с ошибкой"
+            if streamed_parts:
+                self._broadcast_chat_delta_done()
+            self._broadcast_trace(
+                "llm",
+                "claude_code_failed",
+                "Claude Code завершился с ошибкой",
+                node="llm",
+                status="error",
+                error_message=err[:500],
+                detail=make_detail("error", title="Claude Code", body=err[:4000], language="text"),
+            )
+            self._broadcast("chat", "CoreX Error", err[:2000])
+            self._snapshot_lesson([], set(), how="claude_code_error", error=err[:120], ok=False)
+            return None
+
+        self._broadcast_trace(
+            "llm",
+            "claude_code_done",
+            "Claude Code завершил задачу"
+            + (f" · команд: {len(result.commands)}" if result.commands else ""),
+            node="llm",
+            status="done",
+            meta={**self._trace_llm_meta(active), "coding_engine": "claude_code"},
+        )
+
+        streamed = "\n".join(streamed_parts)
+        final_reply = (result.reply or "").strip()
+
+        def _reply_for(files: list[str]) -> str:
+            if streamed and (not final_reply or final_reply in streamed):
+                return streamed
+            return public_claude_reply(final_reply, files)
+
+        return await self._finalize_engine_edits(
+            engine_label="Claude Code",
+            how="claude_code",
+            active_root=active_root,
+            edited=list(result.edited_files),
+            announced_files=announced_files,
+            streamed=streamed,
+            reply_for=_reply_for,
+            web_task=web_task,
+            require_verification=require_verification,
+            json_target_path=json_target_path,
+            user_task=user_task,
+            current_prompt=current_prompt,
+        )
 
     async def _run_agent_loop(
         self,
@@ -2961,7 +3189,19 @@ class CoreXOrchestrator:
         local_compact: bool = False,
         user_task: str = "",
     ) -> str | None:
-        if getattr(self, "_coding_engine", "aider") == "aider" and not conversational:
+        engine = getattr(self, "_coding_engine", "claude_code")
+        if engine == "claude_code" and not conversational:
+            return await self._run_via_claude_code(
+                current_prompt=current_prompt,
+                active_root=active_root,
+                is_question=is_question,
+                requires_writes=requires_writes,
+                persona_id=persona_id,
+                require_verification=require_verification,
+                json_target_path=json_target_path,
+                user_task=user_task,
+            )
+        if engine == "aider" and not conversational:
             return await self._run_via_aider(
                 current_prompt=current_prompt,
                 active_root=active_root,

@@ -1,4 +1,4 @@
-"""Движок правок кода: Aider или встроенный JSON-агент CoreX."""
+"""Движок правок кода: Claude Code, Aider или встроенный JSON-агент CoreX."""
 
 from __future__ import annotations
 
@@ -6,11 +6,16 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-CodingEngineId = Literal["aider", "corex"]
-DEFAULT_CODING_ENGINE: CodingEngineId = "aider"
+CodingEngineId = Literal["claude_code", "aider", "corex"]
+DEFAULT_CODING_ENGINE: CodingEngineId = "claude_code"
 CONFIG_FILENAME = "coding_engine.json"
 
 CODING_ENGINES: tuple[dict[str, str], ...] = (
+    {
+        "id": "claude_code",
+        "name": "Claude Code",
+        "description": "Агент с командами и правками; модель — локальная или онлайн из CoreX",
+    },
     {
         "id": "aider",
         "name": "Aider",
