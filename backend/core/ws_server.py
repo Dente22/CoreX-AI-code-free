@@ -918,6 +918,21 @@ class WebSocketServer:
             payload.update(self.orchestrator.get_ai_runtime_snapshot())
         return web.json_response(payload, status=status)
 
+    async def handle_update_online_model(self, request):
+        if not self.orchestrator:
+            return web.json_response({"error": "Orchestrator not available"}, status=503)
+        try:
+            data = await request.json()
+        except json.JSONDecodeError:
+            return web.json_response({"error": "Invalid JSON payload"}, status=400)
+        result = self.orchestrator.update_online_model(str(data.get("model_name") or ""))
+        status = 200 if result.get("success") else 400
+        payload = {"success": result.get("success", False), **result}
+        if result.get("success"):
+            await self._attach_omniroute_status(payload)
+            payload.update(self.orchestrator.get_ai_runtime_snapshot())
+        return web.json_response(payload, status=status)
+
     async def handle_delete_online_provider(self, request):
         if not self.orchestrator:
             return web.json_response({"error": "Orchestrator not available"}, status=503)
@@ -1226,6 +1241,7 @@ class WebSocketServer:
             app.router.add_post('/api/ai/online/provider', self.handle_set_online_provider)
             app.router.add_delete('/api/ai/online/providers/{provider_id}', self.handle_delete_online_provider)
             app.router.add_post('/api/ai/omniroute/check', self.handle_omniroute_check)
+            app.router.add_post('/api/ai/online/provider/model', self.handle_update_online_model)
             app.router.add_get('/api/ai/ollama/models', self.handle_ollama_models)
             app.router.add_post('/api/ai/ollama/pull', self.handle_ollama_pull)
             app.router.add_get('/api/ai/ollama/pull/progress', self.handle_ollama_pull_progress)

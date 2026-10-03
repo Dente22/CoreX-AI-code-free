@@ -266,6 +266,8 @@ class CoreXOrchestrator:
         self._trace_task_id: str | None = None
         self._last_trace_event_id: str | None = None
         self._active_reply_model: str | None = None
+        # Маршрут может выбрать локальную модель даже в онлайн-режиме — её имя нельзя слать в онлайн API.
+        self._active_reply_mode: str | None = None
         self._web_search_block = ""
         self._lesson_recorded = False
         self._pending_lesson: dict[str, Any] = {}
@@ -539,6 +541,12 @@ class CoreXOrchestrator:
             provider = self.ai_runtime_service.online_service.apply_to_client(self.online)
             if self.gui and hasattr(self.gui, "print_log") and provider:
                 self.gui.print_log("System", f"AI онлайн: {provider['name']} ({provider['model_name']})")
+        return result
+
+    def update_online_model(self, model_name: str) -> dict:
+        result = self.ai_runtime_service.online_service.update_selected_model(model_name)
+        if result.get("success"):
+            self.ai_runtime_service.online_service.apply_to_client(self.online)
         return result
 
     def create_online_provider(self, payload: dict) -> dict:
@@ -2192,6 +2200,7 @@ class CoreXOrchestrator:
                 )
             self._budget = None
             self._active_reply_model = None
+            self._active_reply_mode = None
             self.current_task = None
 
     async def _execute_task_body(
@@ -2536,6 +2545,7 @@ class CoreXOrchestrator:
 
         routed_model = self._routed_online_model(task_for_agent, conversation, active)
         self._active_reply_model = routed_model or active.model_name
+        self._active_reply_mode = active.mode
         if active.mode == "online" and routed_model and routed_model != (active.model_name or ""):
             self._broadcast_thinking(
                 f"Чат: {routed_model} (эконом). Код — {active.model_name}"
@@ -2678,6 +2688,7 @@ class CoreXOrchestrator:
         finally:
             self._budget = None
             self._active_reply_model = None
+            self._active_reply_mode = None
         return
 
     async def _run_via_aider(
@@ -3500,7 +3511,11 @@ class CoreXOrchestrator:
                     "json_mode": use_json_mode,
                 }
                 swap_model = getattr(active.client, "temporary_model", None)
-                if callable(swap_model) and self._active_reply_model:
+                if (
+                    callable(swap_model)
+                    and self._active_reply_model
+                    and self._active_reply_mode == active.mode
+                ):
                     with swap_model(self._active_reply_model):
                         async for chunk in active.client.generate_stream(
                             self.system_prompt,

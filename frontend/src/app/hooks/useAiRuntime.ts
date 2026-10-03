@@ -8,6 +8,7 @@ import {
   setAiMode,
   setAiProvider,
   setOnlineProvider,
+  updateOnlineModel,
   type AiMode,
   type AiRuntimeSnapshot,
   type OmniRouteStatus,
@@ -152,6 +153,19 @@ export function useAiRuntime() {
     [],
   );
 
+  const changeOnlineModel = useCallback(async (modelName: string) => {
+    setBusy(true);
+    try {
+      const data = await updateOnlineModel(modelName);
+      return updateFromResponse(data);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Ошибка смены модели');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const removeOnlineProvider = useCallback(async (providerId: string) => {
     setBusy(true);
     try {
@@ -199,6 +213,7 @@ export function useAiRuntime() {
     selectLocal,
     selectOnline,
     addOnlineProvider,
+    changeOnlineModel,
     removeOnlineProvider,
   };
 }

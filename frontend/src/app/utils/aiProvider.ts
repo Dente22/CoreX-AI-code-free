@@ -229,6 +229,17 @@ export async function setOnlineProvider(
   return response.json();
 }
 
+export async function updateOnlineModel(
+  modelName: string,
+): Promise<AiRuntimeSnapshot & { success: boolean; error?: string }> {
+  const response = await fetchApi('/api/ai/online/provider/model', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model_name: modelName }),
+  });
+  return response.json();
+}
+
 export async function deleteOnlineProvider(
   providerId: string,
 ): Promise<AiRuntimeSnapshot & { success: boolean; error?: string }> {

@@ -38,8 +38,19 @@ export function AIProviderSettings({ onNotification }: AIProviderSettingsProps) 
     selectLocal,
     selectOnline,
     addOnlineProvider,
+    changeOnlineModel,
     removeOnlineProvider,
   } = useAiRuntime();
+  const [modelDraft, setModelDraft] = useState<string | null>(null);
+
+  const saveModelDraft = async () => {
+    const next = (modelDraft ?? '').trim();
+    if (!next) return;
+    if (await changeOnlineModel(next)) {
+      setModelDraft(null);
+      onNotification?.(`Модель: ${next}`);
+    }
+  };
   const {
     installedById,
     needsImportById,
@@ -394,9 +405,50 @@ export function AIProviderSettings({ onNotification }: AIProviderSettingsProps) 
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] text-white truncate">{provider.name}</p>
-                  <p className="text-[10px] text-[var(--corex-text-dim)] truncate">
-                    {provider.model_name} · {provider.api_type.toUpperCase()}
-                  </p>
+                  {isSelected && modelDraft !== null ? (
+                    <form
+                      className="flex items-center gap-1 mt-0.5"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void saveModelDraft();
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        value={modelDraft}
+                        onChange={(event) => setModelDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') setModelDraft(null);
+                        }}
+                        placeholder={isOmniRouteProvider(provider) ? 'claude-free или ollama-local/qwen3:4b' : 'имя модели'}
+                        className="min-w-0 flex-1 rounded border border-[#2a3140] bg-[#0b1118] px-1.5 py-0.5 text-[11px] text-white"
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy || !modelDraft.trim()}
+                        className="px-1.5 py-0.5 rounded text-[10px] text-[#89d185] border border-[#89d185]/30"
+                      >
+                        OK
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="text-[10px] text-[var(--corex-text-dim)] truncate">
+                      {isSelected ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setModelDraft(provider.model_name)}
+                          title="Изменить модель"
+                          className="underline decoration-dotted hover:text-white"
+                        >
+                          {provider.model_name}
+                        </button>
+                      ) : (
+                        provider.model_name
+                      )}{' '}
+                      · {provider.api_type.toUpperCase()}
+                    </p>
+                  )}
                 </div>
                 {!isSelected ? (
                   <button
