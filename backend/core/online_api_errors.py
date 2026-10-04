@@ -17,6 +17,9 @@ _MODEL_UNAVAILABLE_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# OmniRoute: "oc/north-mini-code-free: auth — [401]: ..." — отказал апстрим-провайдер, не ключ шлюза.
+_GATEWAY_UPSTREAM_ERROR = re.compile(r"^([a-z0-9][\w.-]*/[^\s:]+(?::[\w.-]+)?): \w+ [—-] ")
+
 
 def extract_api_error_message(body: str) -> str:
     """Извлечь текст ошибки из JSON-ответа провайдера."""
@@ -89,6 +92,17 @@ def format_online_api_error(
             "• Создайте новый API-ключ в AI Studio\n"
             "• Переключитесь на локальную модель (Ollama) в селекторе моделей"
             f"{model_hint}"
+            + (f"\n\nДетали: {detail}" if detail else "")
+        )
+
+    upstream = _GATEWAY_UPSTREAM_ERROR.match(detail)
+    if upstream:
+        return (
+            f"[CoreX] Шлюз принял запрос, но провайдер внутри него отказал: {upstream.group(1)} (HTTP {status}).\n"
+            "Ключ CoreX → шлюз в порядке. Обычно так бывает с моделью «auto»: она сама выбирает "
+            "провайдеров из каталога, в том числе неподключённых (например OpenCode).\n\n"
+            "Что сделать: Модели → Онлайн → нажмите на имя модели у активного провайдера "
+            "и укажите комбо, например claude-free, или модель с префиксом: ollama-local/qwen3:4b."
             + (f"\n\nДетали: {detail}" if detail else "")
         )
 
